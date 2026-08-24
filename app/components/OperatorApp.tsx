@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExperimentState, Settings, Stage } from "../lib/experiment";
 import {
   clampInteger,
@@ -25,15 +25,7 @@ import { useExperiment } from "../lib/useExperiment";
 
 type Tab = "run" | "scores" | "practice" | "settings";
 
-const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/13dk3HXybtUQ5-kj0t55Ggj5wXN-R89qo";
-function validDriveFolderUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "drive.google.com" ? url.toString() : DRIVE_FOLDER_URL;
-  } catch {
-    return DRIVE_FOLDER_URL;
-  }
-}
+const NETWORK_DATA_PATH = "\\\\vscifs.huji.ac.il\\lab_marciano\\Experiments\\Serial Performances\\Mechanism Lab Experiments - Brains competition\\pothos_experiment_01\\data";
 const stageLabels: Record<Stage, string> = {
   setup: "לפני ההתחלה",
   practice: "אימון",
@@ -329,12 +321,10 @@ export default function OperatorApp() {
   const [practiceRound, setPracticeRound] = useState(1);
   const [practiceParticipant, setPracticeParticipant] = useState(1);
   const [restoreMessage, setRestoreMessage] = useState("");
-  const [driveFolder, setDriveFolder] = useState<WritableDirectoryHandle | null>(null);
+  const [networkFolder, setNetworkFolder] = useState<WritableDirectoryHandle | null>(null);
   const [localFolder, setLocalFolder] = useState<WritableDirectoryHandle | null>(null);
-  const [saveToDrive, setSaveToDrive] = useState(true);
   const [saveToLocal, setSaveToLocal] = useState(true);
-  const [driveFolderUrl, setDriveFolderUrl] = useState(DRIVE_FOLDER_URL);
-  const [driveStatus, setDriveStatus] = useState("טרם נשמר קובץ ל-Drive");
+  const [networkStatus, setNetworkStatus] = useState("תיקיית הרשת טרם חוברה");
   const [localStatus, setLocalStatus] = useState("טרם נבחרה תיקייה מקומית");
   const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const lastAnnouncement = useRef("");
@@ -412,12 +402,12 @@ export default function OperatorApp() {
   }, [state.timer, state.settings.durationSeconds, state.settings.countdownSeconds]);
 
   useEffect(() => {
-    Promise.all([getStoredFolder("drive-folder"), getStoredFolder("local-folder")]).then(async ([drive, local]) => {
-      if (drive) {
-        setDriveFolder(drive);
-        setDriveStatus(await ensureFolderPermission(drive)
-          ? `תיקיית Drive מוכנה: ${drive.name}`
-          : `נמצאה ${drive.name} · יש לאשר מחדש גישה`);
+    Promise.all([getStoredFolder("network-folder"), getStoredFolder("local-folder")]).then(async ([network, local]) => {
+      if (network) {
+        setNetworkFolder(network);
+        setNetworkStatus(await ensureFolderPermission(network)
+          ? `השמירה החיה פעילה: ${network.name}`
+          : `נמצאה ${network.name} · יש לאשר מחדש גישה`);
       }
       if (local) {
         setLocalFolder(local);
@@ -427,6 +417,35 @@ export default function OperatorApp() {
       }
     }).catch(() => undefined);
   }, []);
+
+  const networkSyncSignature = useMemo(() => JSON.stringify({
+    sessionCode: state.sessionCode,
+    settings: state.settings,
+    competitionScores: state.competitionScores,
+    practiceScores: state.practiceScores,
+    notes: state.notes,
+    stage: state.stage,
+    currentRound: state.currentRound,
+    currentParticipant: state.currentParticipant,
+  }), [state]);
+
+  useEffect(() => {
+    if (!hydrated || !networkFolder) return;
+    const timeout = window.setTimeout(async () => {
+      if (!await ensureFolderPermission(networkFolder)) {
+        setNetworkStatus("יש לאשר מחדש גישה לתיקיית הרשת");
+        return;
+      }
+      try {
+        setNetworkStatus("מעדכן את קובץ ה-Excel בתיקיית הרשת…");
+        await syncWorkbookToFolder(state, networkFolder);
+        setNetworkStatus(`השמירה החיה מעודכנת · ${new Date().toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
+      } catch {
+        setNetworkStatus("השמירה לרשת נכשלה · ודא חיבור ל-eduroam");
+      }
+    }, 900);
+    return () => window.clearTimeout(timeout);
+  }, [hydrated, networkFolder, networkSyncSignature]);
 
   useEffect(() => {
     if (!hydrated || sessionPromptShown.current) return;
@@ -536,29 +555,35 @@ export default function OperatorApp() {
     }
   };
 
-  const saveWorkbookDestinations = async () => {
-    if (!saveToDrive && !saveToLocal) {
-      setDriveStatus("לא נבחר יעד שמירה");
-      setLocalStatus("לא נבחר יעד שמירה");
-      return;
+  const connectNetworkFolder = async () => {
+    try {
+      const handle = networkFolder && await ensureFolderPermission(networkFolder, true)
+        ? networkFolder
+        : await chooseFolder("network-folder");
+      setNetworkFolder(handle);
+      setNetworkStatus(`מתחבר לתיקיית הרשת: ${handle.name}…`);
+      await syncWorkbookToFolder(state, handle);
+      setNetworkStatus(`השמירה החיה פעילה בתיקיית הרשת · ${handle.name}`);
+    } catch (error) {
+      setNetworkStatus(error instanceof Error && error.message === "unsupported"
+        ? "הדפדפן אינו תומך בשמירה לתיקייה · יש להשתמש ב-Chrome או Edge"
+        : "החיבור לתיקיית הרשת לא הושלם · ודא חיבור ל-eduroam ובחר את התיקייה מחדש");
     }
+  };
 
-    let manualDriveUpload = false;
-    if (saveToDrive) {
-      try {
-        const handle = driveFolder && await ensureFolderPermission(driveFolder, true)
-          ? driveFolder
-          : await chooseFolder("drive-folder");
-        setDriveFolder(handle);
-        setDriveStatus(`שומר ל-Drive דרך ${handle.name}…`);
-        await syncWorkbookToFolder(state, handle);
-        setDriveStatus(`Excel נשמר בתיקיית Drive: ${handle.name}`);
-      } catch (error) {
-        manualDriveUpload = true;
-        setDriveStatus(error instanceof Error && error.message === "unsupported"
-          ? "הדפדפן אינו מאפשר כתיבה לתיקיית Drive · עוברים להעלאה ידנית"
-          : "לא נבחרה תיקיית Drive מסונכרנת · עוברים להעלאה ידנית");
-      }
+  const saveWorkbookDestinations = async () => {
+    try {
+      const handle = networkFolder && await ensureFolderPermission(networkFolder, true)
+        ? networkFolder
+        : await chooseFolder("network-folder");
+      setNetworkFolder(handle);
+      setNetworkStatus(`שומר לתיקיית הרשת דרך ${handle.name}…`);
+      await syncWorkbookToFolder(state, handle);
+      setNetworkStatus(`Excel מעודכן בתיקיית הרשת · ${handle.name}`);
+    } catch (error) {
+      setNetworkStatus(error instanceof Error && error.message === "unsupported"
+        ? "הדפדפן אינו תומך בשמירה לתיקייה · יש להשתמש ב-Chrome או Edge"
+        : "השמירה לתיקיית הרשת נכשלה · ודא חיבור ל-eduroam ובחר את התיקייה מחדש");
     }
 
     if (saveToLocal) {
@@ -580,11 +605,6 @@ export default function OperatorApp() {
       }
     }
 
-    if (manualDriveUpload) {
-      if (!saveToLocal) await exportWorkbook(state);
-      window.open(validDriveFolderUrl(driveFolderUrl), "_blank", "noopener,noreferrer");
-      setDriveStatus("תיקיית Drive נפתחה · יש להעלות אליה את קובץ ה-Excel");
-    }
   };
 
   if (!hydrated) return <main className="loading-screen">טוען את נתוני ההרצה…</main>;
@@ -606,6 +626,7 @@ export default function OperatorApp() {
         <p className="panel-label">כניסה למערכת פוטוס</p>
         <h2 id="session-choice-title">האם להתחיל סשן חדש?</h2>
         <p>נמצאו במחשב נתונים מההרצה <strong>{state.sessionCode}</strong>. אפשר לפתוח הרצה חדשה ונקייה או להמשיך את ההרצה הקיימת.</p>
+        <div className="network-reminder"><strong>לפני שמתחילים</strong><span>ודא שהמחשב מחובר לרשת ה-Wi-Fi ‏eduroam.</span></div>
         <div className="session-choice-actions">
           <button className="primary" onClick={startNewSessionFromPrompt}>כן, להתחיל סשן חדש</button>
           <button className="secondary" onClick={() => setShowSessionPrompt(false)}>להמשיך את הסשן הקודם</button>
@@ -647,7 +668,7 @@ export default function OperatorApp() {
         </section>}
       </> : <>
         <section className="hero-card finished-hero"><span className="pill">התחרות הסתיימה</span><div className="winner-block"><p>{winners(state).length > 1 ? "הזוכים בתחרות" : "הזוכה בתחרות"}</p><strong>{winners(state).map((row) => `#${row.participant}`).join(", ")}</strong><span>{winners(state)[0]?.score ?? 0} נקודות</span></div></section>
-        <section className="panel finish-actions"><button className="primary" onClick={saveWorkbookDestinations}>שמירה ליעדים שנבחרו</button><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><a className="secondary button-link" href={validDriveFolderUrl(driveFolderUrl)} target="_blank" rel="noreferrer">פתיחת התיקייה בענן</a><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button><p className="drive-finish-status">{driveStatus} · {localStatus}</p></section>
+        <section className="panel finish-actions"><button className="primary" onClick={saveWorkbookDestinations}>שמירה מיידית לתיקיית הרשת</button><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button><p className="drive-finish-status">{networkStatus}{saveToLocal ? ` · ${localStatus}` : ""}</p></section>
       </>}
     </div>}
 
@@ -661,12 +682,13 @@ export default function OperatorApp() {
         ["durationSeconds", "זמן זריקה בשניות", 3, 120], ["countdownSeconds", "ספירה לאחור", 0, 10], ["maxScore", "ניקוד מרבי לחץ", 1, 100], ["prizeAmount", "פרס לזוכה בשקלים", 0, 10000],
       ] as [keyof Settings, string, number, number][]).map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={state.settings[key]} onChange={(event) => updateSetting(key, clampInteger(Number(event.target.value), min, max))} /></label>)}</div><button className="primary start-experiment" onClick={beginPractice}>אישור ההגדרות ומעבר לאימון</button></article>
       <article className="panel"><p className="panel-label">פרטי הרצה ושמירה</p><h2>גיבוי ויצוא</h2><label className="stacked-label">קוד הרצה<input value={state.sessionCode} onChange={(event) => setState((current) => ({ ...current, sessionCode: event.target.value }))} /></label><p className="field-help">הקוד נוצר אוטומטית משם הניסוי ומתאריך ההרצה.</p><div className="backup-card"><strong>גיבוי חי</strong><p>כל שינוי נשמר במחשב ומגובה מיד במאגר מקוון כאשר יש אינטרנט. כך ניתן לשחזר הרצה גם ממחשב אחר באמצעות קוד ההרצה.</p><button className="secondary" onClick={restoreFromLiveBackup}>שחזור לפי קוד ההרצה</button>{restoreMessage && <span>{restoreMessage}</span>}</div><label className="stacked-label">הערות וחריגים<textarea rows={5} value={state.notes} onChange={(event) => setState((current) => ({ ...current, notes: event.target.value }))} /></label>
-        <div className="drive-card destination-card"><strong>יעדי שמירת Excel</strong><p>אפשר לשמור במקביל בתיקיית Google Drive מסונכרנת ובתיקייה פיזית במחשב, או לבטל כל יעד בנפרד.</p>
-          <label className="destination-option"><input type="checkbox" checked={saveToDrive} onChange={(event) => setSaveToDrive(event.target.checked)} /><span><b>Google Drive</b><small>שמירה דרך התיקייה המסונכרנת במחשב</small></span></label>
-          {saveToDrive && <div className="destination-details"><label className="stacked-label">כתובת תיקיית Drive<input type="url" value={driveFolderUrl} onChange={(event) => setDriveFolderUrl(event.target.value)} /></label><div className="destination-actions"><button className="secondary" onClick={async () => { try { const handle = await chooseFolder("drive-folder"); setDriveFolder(handle); setDriveStatus(`נבחרה תיקיית Drive: ${handle.name}`); } catch { setDriveStatus("בחירת תיקיית Drive בוטלה"); } }}>{driveFolder ? "החלפת תיקיית Drive המסונכרנת" : "בחירת תיקיית Drive המסונכרנת"}</button><a href={validDriveFolderUrl(driveFolderUrl)} target="_blank" rel="noreferrer">פתיחת התיקייה בענן</a></div><span className="drive-status">{driveStatus}</span></div>}
+        <div className="drive-card destination-card network-card"><strong>שמירה חיה לתיקיית האוניברסיטה</strong><div className="eduroam-notice"><b>ודא שמחובר לרשת ה-Wi-Fi ‏eduroam</b><span>ללא חיבור לרשת האוניברסיטה לא ניתן להגיע לתיקיית הנתונים.</span></div>
+          <label className="stacked-label">נתיב תיקיית הנתונים<input className="network-path" readOnly value={NETWORK_DATA_PATH} onFocus={(event) => event.currentTarget.select()} /></label>
+          <p>בחיבור הראשון, לחצו על הכפתור, הדביקו את הנתיב בשורת הכתובת של חלון Windows ובחרו את תיקיית <b>data</b>. לאחר האישור, קובץ ה-Excel של ההרצה יתעדכן שם אוטומטית בכל שינוי.</p>
+          <div className="destination-actions"><button className="primary" onClick={connectNetworkFolder}>{networkFolder ? "אישור מחדש או החלפת תיקיית הרשת" : "חיבור לתיקיית הרשת"}</button><button className="secondary" onClick={async () => { try { await navigator.clipboard.writeText(NETWORK_DATA_PATH); setNetworkStatus("הנתיב הועתק · הדבק אותו בשורת הכתובת של חלון בחירת התיקייה"); } catch { setNetworkStatus("לא ניתן להעתיק אוטומטית · סמן והעתק את הנתיב שמופיע למעלה"); } }}>העתקת הנתיב</button></div><span className="drive-status">{networkStatus}</span>
           <label className="destination-option"><input type="checkbox" checked={saveToLocal} onChange={(event) => setSaveToLocal(event.target.checked)} /><span><b>תיקייה פיזית במחשב</b><small>עותק נוסף במיקום שתבחרו</small></span></label>
           {saveToLocal && <div className="destination-details"><button className="secondary" onClick={async () => { try { const handle = await chooseFolder("local-folder"); setLocalFolder(handle); setLocalStatus(`נבחרה תיקייה מקומית: ${handle.name}`); } catch { setLocalStatus("בחירת התיקייה המקומית בוטלה"); } }}>{localFolder ? "החלפת התיקייה המקומית" : "בחירת תיקייה מקומית"}</button><span className="drive-status">{localStatus}</span></div>}
-          <button className="primary wide" onClick={saveWorkbookDestinations}>שמירה עכשיו ליעדים שנבחרו</button>
+          <button className="primary wide" onClick={saveWorkbookDestinations}>שמירה מיידית עכשיו</button>
         </div><div className="button-stack"><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button></div></article>
     </section>}
   </main>;

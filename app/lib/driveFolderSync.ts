@@ -5,7 +5,7 @@ import { workbookBytes } from "./exportWorkbook";
 
 const DATABASE_NAME = "pothos-drive-folder";
 const STORE_NAME = "handles";
-export type FolderDestination = "drive-folder" | "local-folder";
+export type FolderDestination = "network-folder" | "local-folder";
 
 type PermissionStateValue = "granted" | "denied" | "prompt";
 

@@ -498,6 +498,21 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .session-choice h2 { margin-bottom: 12px; font-size: clamp(26px, 4vw, 38px); }
 .session-choice > p:not(.panel-label) { color: var(--muted); line-height: 1.65; }
 .session-choice-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
+.network-reminder,
+.eduroam-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 15px;
+  border: 1px solid #ddbd3c;
+  border-radius: 13px;
+  background: #fff3bf;
+  color: #473900;
+  line-height: 1.45;
+}
+.network-reminder { margin-top: 18px; }
+.network-reminder strong,
+.eduroam-notice b { color: #332900; }
 
 /* Independent Drive and physical-computer destinations. */
 .destination-card { display: grid; gap: 10px; }
@@ -519,6 +534,13 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .destination-details .stacked-label { margin-top: 2px; }
 .destination-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 .destination-actions a { color: var(--green); font-weight: 800; }
+.network-path {
+  direction: ltr;
+  text-align: left;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+.network-card > p { margin: 0; color: var(--muted); line-height: 1.55; }
 
 @media (max-width: 900px), (max-height: 620px) {
   .run-workspace { grid-template-columns: 1fr; grid-template-rows: auto; }
