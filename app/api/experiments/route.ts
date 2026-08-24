@@ -1,12 +1,19 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { experiments } from "../../../db/schema";
 
 export async function GET(request: Request) {
   try {
-    const id = new URL(request.url).searchParams.get("id");
-    if (!id) return Response.json({ error: "id is required" }, { status: 400 });
-    const [row] = await getDb().select().from(experiments).where(eq(experiments.id, id)).limit(1);
+    const params = new URL(request.url).searchParams;
+    const id = params.get("id");
+    const sessionCode = params.get("sessionCode");
+    if (!id && !sessionCode) return Response.json({ error: "id or sessionCode is required" }, { status: 400 });
+    const [row] = await getDb()
+      .select()
+      .from(experiments)
+      .where(id ? eq(experiments.id, id) : eq(experiments.sessionCode, sessionCode!))
+      .orderBy(desc(experiments.updatedAt))
+      .limit(1);
     if (!row) return Response.json({ error: "not found" }, { status: 404 });
     return Response.json({ experiment: JSON.parse(row.payload) });
   } catch (error) {

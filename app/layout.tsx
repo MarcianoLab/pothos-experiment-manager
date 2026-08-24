@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "פוטוס · מערכת ניהול ניסוי",
+  title: "Pothos · מערכת ניהול ניסוי",
   description: "ניהול תחרות הדיוק, תיעוד תוצאות והקרנה למשתתפים",
 };
 

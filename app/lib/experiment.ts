@@ -17,6 +17,7 @@ export type TimerState = {
   secondsLeft: number;
   countdownLeft: number;
   endAt: number | null;
+  pausedPhase?: "countdown" | "running";
 };
 
 export type ExperimentState = {
@@ -56,8 +57,13 @@ function makeId() {
 
 function makeSessionCode() {
   const now = new Date();
-  const day = now.toISOString().slice(0, 10).replaceAll("-", "");
-  return `PH-${day}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "00";
+  return `pothos${part("year")}${part("month")}${part("day")}_${part("hour")}${part("minute")}`;
 }
 
 export function createExperiment(): ExperimentState {
@@ -141,9 +147,13 @@ export function clampInteger(value: number, min: number, max: number) {
 export function normalizeState(candidate: Partial<ExperimentState>): ExperimentState {
   const base = createExperiment();
   const settings = { ...base.settings, ...(candidate.settings ?? {}) };
+  const sessionCode = candidate.sessionCode && !candidate.sessionCode.startsWith("PH-")
+    ? candidate.sessionCode
+    : base.sessionCode;
   return {
     ...base,
     ...candidate,
+    sessionCode,
     settings,
     timer: { ...base.timer, ...(candidate.timer ?? {}) },
     competitionScores: candidate.competitionScores ?? {},

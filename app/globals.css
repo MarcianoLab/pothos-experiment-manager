@@ -53,6 +53,80 @@ h1 { font-size: clamp(25px, 3vw, 38px); margin-bottom: 0; letter-spacing: -0.04e
   .dart-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* Pothos workflow refinements */
+.stage-strip.three-stages { grid-template-columns: repeat(3, 1fr); }
+.compact-status { grid-template-columns: minmax(0, 1.35fr) minmax(270px, .65fr); }
+.compact-hero { padding-block: 24px; }
+.compact-hero h2 { font-size: clamp(24px, 3vw, 38px); margin-block: 12px 0; }
+.compact-hero .timer-preview { font-size: clamp(66px, 8vw, 104px); margin: 8px 0 14px; }
+.compact-hero .timer-caption { margin: -6px 0 16px; }
+.compact-panel { min-height: 0; }
+.control-selects { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.phase-number { display: flex; align-items: baseline; gap: 12px; margin: 14px 0 22px; }
+.phase-number strong { font-size: 54px; line-height: 1; }
+.phase-number span { color: var(--muted); font-weight: 700; }
+.score-panel { padding-block: 22px; }
+.score-heading { margin-bottom: 16px; }
+.keyboard-hint { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
+.finished-hero { text-align: center; min-height: 48vh; display: grid; place-content: center; }
+.finished-hero .winner-block { align-items: center; margin-top: 20px; }
+.button-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.start-experiment { width: 100%; margin-top: 22px; font-size: 17px; padding: 15px; }
+.field-help { color: var(--muted); font-size: 12px; margin: 7px 0 15px; }
+.backup-card, .drive-card { border-radius: 16px; padding: 16px; margin: 15px 0; }
+.backup-card { background: #edf6ef; border: 1px solid #cde3d3; }
+.drive-card { background: #f7f4e8; border: 1px solid #e7ddbd; }
+.backup-card strong, .drive-card strong { font-size: 16px; }
+.backup-card p, .drive-card p { color: var(--muted); line-height: 1.5; margin: 6px 0 12px; font-size: 13px; }
+.backup-card span { display: block; margin-top: 10px; font-size: 13px; color: var(--green); font-weight: 700; }
+.drive-card a { color: var(--green); font-weight: 800; }
+
+/* The participant view must always fit a single projected viewport. */
+html, body { min-height: 100%; }
+.display-shell {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  place-content: normal;
+  padding: 0;
+}
+.display-shell::before { content: none; display: none; }
+.display-header { flex: 0 0 clamp(48px, 7vh, 68px); height: auto; padding-inline: 3.5vw; font-size: clamp(12px, 1.4vw, 20px); }
+.display-center { flex: 1 1 auto; min-height: 0; height: auto; padding: 2vh 4vw 5vh; }
+.display-center h1 { font-size: clamp(38px, 6vw, 82px); margin: 0 0 1.5vh; }
+.display-center .display-timer { font-size: clamp(120px, 28vh, 300px); margin: 1vh 0; }
+.practice-display { align-content: center; }
+.competition-layout { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: minmax(150px, 31vh) minmax(0, 1fr); gap: 1.6vh; padding: 0 3.5vw 2.2vh; }
+.competition-banner { min-height: 0; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3vw; padding: 0 1vw; }
+.competition-banner h1 { font-size: clamp(34px, 5.5vw, 76px); }
+.competition-banner .display-instruction { grid-column: auto; text-align: right; margin: 1vh 0 0; font-size: clamp(18px, 2.4vw, 34px); }
+.display-timer.compact { font-size: clamp(92px, 19vh, 190px); line-height: .82; }
+.public-results { width: 100%; height: 100%; min-height: 0; margin: 0; border-radius: 18px; overflow: hidden; }
+.public-results table { height: 100%; table-layout: fixed; }
+.public-results thead { height: 14%; }
+.public-results tbody tr { height: calc(86% / var(--participant-rows, 6)); }
+.public-results th, .public-results td { padding: .35vh .7vw; font-size: clamp(14px, 2.2vh, 28px); line-height: 1; }
+.public-results thead th { font-size: clamp(11px, 1.7vh, 20px); }
+.display-winners { margin: 1vh 0 2vh; }
+.display-winners span { font-size: clamp(80px, 22vh, 210px); }
+
+@media (max-width: 900px) {
+  .compact-status { grid-template-columns: 1fr; }
+  .control-selects { grid-template-columns: 1fr; }
+}
+
+@media (max-height: 700px) {
+  .operator-shell { padding-top: 16px; }
+  .topbar { margin-bottom: 16px; }
+  .tabs { margin-bottom: 10px; }
+  .stage-strip { margin-bottom: 12px; }
+  .compact-hero .timer-preview { font-size: 64px; }
+}
+
 .display-shell { min-height: 100vh; display: grid; place-content: center; text-align: center; background: var(--green); color: white; padding: 5vw; }
 .display-kicker { color: var(--yellow); font-weight: 900; letter-spacing: .1em; }
 .display-shell h1 { font-size: clamp(38px, 6vw, 82px); }
