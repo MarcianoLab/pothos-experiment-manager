@@ -14,6 +14,13 @@ import {
   winners,
 } from "../lib/experiment";
 import { exportWorkbook } from "../lib/exportWorkbook";
+import {
+  chooseDriveFolder,
+  ensureFolderPermission,
+  getStoredDriveFolder,
+  syncWorkbookToFolder,
+  type WritableDirectoryHandle,
+} from "../lib/driveFolderSync";
 import { useExperiment } from "../lib/useExperiment";
 
 type Tab = "run" | "scores" | "practice" | "settings";
@@ -31,16 +38,34 @@ const hebrewNumbers: Record<number, string> = {
   6: "שש", 7: "שבע", 8: "שמונה", 9: "תשע", 10: "עשר",
 };
 
-function speakHebrew(text: string) {
+function speakHebrew(text: string, cancelPrevious = false) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+  if (cancelPrevious) window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "he-IL";
-  utterance.rate = 1;
+  utterance.rate = 1.15;
   utterance.volume = 1;
   const voice = window.speechSynthesis.getVoices().find((candidate) => candidate.lang.toLowerCase().startsWith("he"));
   if (voice) utterance.voice = voice;
   window.speechSynthesis.speak(utterance);
+}
+
+function playBeep(frequency = 880, duration = 120) {
+  const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return;
+  const context = new AudioContextClass();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.value = frequency;
+  gain.gain.setValueAtTime(.001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(.22, context.currentTime + .01);
+  gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration / 1000);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + duration / 1000 + .02);
+  oscillator.onended = () => void context.close();
 }
 
 function freshTimer(current: ExperimentState) {
@@ -215,12 +240,37 @@ function Leaderboard({ state, chooseScore }: { state: ExperimentState; chooseSco
   </tbody></table></div>;
 }
 
+function TurnNavigator({ state, practice, onSelect, onPrevious, onNext }: {
+  state: ExperimentState;
+  practice: boolean;
+  onSelect: (round: number, participant: number) => void;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  const roundCount = practice ? state.settings.practiceRounds : state.settings.competitionRounds;
+  const scores = practice ? state.practiceScores : state.competitionScores;
+  const currentIndex = (state.currentRound - 1) * state.settings.participantCount + state.currentParticipant;
+  const totalTurns = roundCount * state.settings.participantCount;
+  return <section className="turn-navigator panel">
+    <div className="turn-nav-heading"><div><p className="panel-label">{practice ? "עמדות לתיעוד" : "סרגל תורים"}</p><h3>סבב {state.currentRound} · משתתף {state.currentParticipant}</h3></div><span>{currentIndex} מתוך {totalTurns}</span></div>
+    <div className="round-tabs" aria-label="בחירת סבב">{Array.from({ length: roundCount }, (_, index) => <button key={index} className={state.currentRound === index + 1 ? "active" : ""} onClick={() => onSelect(index + 1, state.currentParticipant)}>סבב {index + 1}</button>)}</div>
+    <div className="participant-queue" aria-label="בחירת משתתף">{Array.from({ length: state.settings.participantCount }, (_, index) => {
+      const participant = index + 1;
+      const completed = Object.prototype.hasOwnProperty.call(scores, scoreKey(state.currentRound, participant));
+      return <button key={participant} className={`${state.currentParticipant === participant ? "active" : ""} ${completed ? "completed" : ""}`} onClick={() => onSelect(state.currentRound, participant)}><span>{participant}</span><small>{completed ? "תועד" : "ממתין"}</small></button>;
+    })}</div>
+    <div className="turn-nav-actions"><button className="secondary" onClick={onPrevious} disabled={currentIndex <= 1}>התור הקודם</button><button className="primary" onClick={onNext}>{currentIndex >= totalTurns ? (practice ? "מעבר לתחרות" : "סיום התחרות") : "התור הבא"}</button></div>
+  </section>;
+}
+
 export default function OperatorApp() {
   const { state, setState, replaceState, hydrated, saveStatus } = useExperiment();
   const [tab, setTab] = useState<Tab>("settings");
   const [practiceRound, setPracticeRound] = useState(1);
   const [practiceParticipant, setPracticeParticipant] = useState(1);
   const [restoreMessage, setRestoreMessage] = useState("");
+  const [driveFolder, setDriveFolder] = useState<WritableDirectoryHandle | null>(null);
+  const [driveStatus, setDriveStatus] = useState("לא חוברה תיקייה מקומית מסונכרנת");
   const lastAnnouncement = useRef("");
 
   useEffect(() => {
@@ -256,13 +306,53 @@ export default function OperatorApp() {
     const key = `${timer.phase}-${timer.phase === "countdown" ? timer.countdownLeft : timer.secondsLeft}`;
     if (lastAnnouncement.current === key) return;
     lastAnnouncement.current = key;
-    if (timer.phase === "countdown" && timer.countdownLeft > 0) speakHebrew(hebrewNumbers[timer.countdownLeft] ?? String(timer.countdownLeft));
+    if (timer.phase === "countdown" && timer.countdownLeft > 0) {
+      speakHebrew(hebrewNumbers[timer.countdownLeft] ?? String(timer.countdownLeft), timer.countdownLeft === state.settings.countdownSeconds);
+    }
     if (timer.phase === "running" && timer.secondsLeft === state.settings.durationSeconds) speakHebrew("התחילו");
-    else if (timer.phase === "running" && timer.secondsLeft <= 3 && timer.secondsLeft > 0) speakHebrew(hebrewNumbers[timer.secondsLeft]);
-    if (timer.phase === "finished") speakHebrew("הזמן הסתיים");
-  }, [state.timer, state.settings.durationSeconds]);
+    else if (timer.phase === "running" && timer.secondsLeft <= 3 && timer.secondsLeft > 0) playBeep(760 + (3 - timer.secondsLeft) * 130, 150);
+    if (timer.phase === "finished") {
+      playBeep(520, 260);
+      speakHebrew("הזמן הסתיים");
+    }
+  }, [state.timer, state.settings.durationSeconds, state.settings.countdownSeconds]);
 
-  const currentValues = useMemo(() => throwsFor(state.competitionScores, state.currentRound, state.currentParticipant, state.settings.dartCount), [state]);
+  useEffect(() => {
+    getStoredDriveFolder().then(async (handle) => {
+      if (!handle) return;
+      if (await ensureFolderPermission(handle)) {
+        setDriveFolder(handle);
+        setDriveStatus(`מחובר לתיקייה: ${handle.name}`);
+      } else {
+        setDriveStatus(`נמצאה התיקייה ${handle.name} · יש לאשר מחדש גישה`);
+      }
+    }).catch(() => undefined);
+  }, []);
+
+  const driveSyncSignature = useMemo(() => JSON.stringify({
+    sessionCode: state.sessionCode,
+    settings: state.settings,
+    competitionScores: state.competitionScores,
+    practiceScores: state.practiceScores,
+    notes: state.notes,
+    stage: state.stage,
+    currentRound: state.currentRound,
+    currentParticipant: state.currentParticipant,
+  }), [state]);
+
+  useEffect(() => {
+    if (!driveFolder) return;
+    setDriveStatus(`ממתין לעדכון בתיקייה: ${driveFolder.name}`);
+    const timeout = window.setTimeout(async () => {
+      try {
+        await syncWorkbookToFolder(state, driveFolder);
+        setDriveStatus(`Excel עודכן בתיקייה: ${driveFolder.name}`);
+      } catch {
+        setDriveStatus("העדכון לתיקייה נכשל · יש לבחור אותה מחדש");
+      }
+    }, 1400);
+    return () => window.clearTimeout(timeout);
+  }, [driveFolder, driveSyncSignature]);
 
   const changeStage = (stage: Stage) => setState((current) => ({
     ...current,
@@ -298,12 +388,36 @@ export default function OperatorApp() {
     return { ...current, currentParticipant: participant, currentRound: round, timer: freshTimer(current) };
   });
 
-  const nextPracticeRound = () => setState((current) => {
-    if (current.currentRound >= current.settings.practiceRounds) {
+  const nextPracticeTurn = () => setState((current) => {
+    if (current.currentParticipant === current.settings.participantCount && current.currentRound === current.settings.practiceRounds) {
       return { ...current, stage: "competition", currentRound: 1, currentParticipant: 1, timer: freshTimer(current) };
     }
-    return { ...current, currentRound: current.currentRound + 1, timer: freshTimer(current) };
+    let participant = current.currentParticipant + 1;
+    let round = current.currentRound;
+    if (participant > current.settings.participantCount) {
+      participant = 1;
+      round += 1;
+    }
+    return { ...current, currentParticipant: participant, currentRound: round, timer: participant === 1 ? freshTimer(current) : current.timer };
   });
+
+  const previousTurn = () => setState((current) => {
+    let participant = current.currentParticipant - 1;
+    let round = current.currentRound;
+    if (participant < 1 && round > 1) {
+      participant = current.settings.participantCount;
+      round -= 1;
+    }
+    if (participant < 1) participant = 1;
+    return { ...current, currentParticipant: participant, currentRound: round, timer: current.stage === "practice" ? current.timer : freshTimer(current) };
+  });
+
+  const selectTurn = (round: number, participant: number) => setState((current) => ({
+    ...current,
+    currentRound: round,
+    currentParticipant: participant,
+    timer: current.stage === "practice" ? current.timer : freshTimer(current),
+  }));
 
   const nextPrivatePractice = () => {
     if (practiceParticipant < state.settings.participantCount) {
@@ -338,6 +452,22 @@ export default function OperatorApp() {
     }
   };
 
+  const connectDriveFolder = async () => {
+    try {
+      const handle = driveFolder && await ensureFolderPermission(driveFolder, true)
+        ? driveFolder
+        : await chooseDriveFolder();
+      setDriveFolder(handle);
+      setDriveStatus(`מחובר לתיקייה: ${handle.name}`);
+      await syncWorkbookToFolder(state, handle);
+      setDriveStatus(`Excel עודכן בתיקייה: ${handle.name}`);
+    } catch (error) {
+      setDriveStatus(error instanceof Error && error.message === "unsupported"
+        ? "הדפדפן אינו תומך בבחירת תיקייה. יש להשתמש ב-Chrome או Edge."
+        : "החיבור לתיקייה בוטל או לא אושר.");
+    }
+  };
+
   if (!hydrated) return <main className="loading-screen">טוען את נתוני ההרצה…</main>;
 
   const saveLabels = {
@@ -346,7 +476,6 @@ export default function OperatorApp() {
     cloud: "גיבוי חי מעודכן",
     offline: "אין אינטרנט · נשמר במחשב",
   };
-  const practiceActionLabel = state.currentRound >= state.settings.practiceRounds ? "סיום האימון ומעבר לתחרות" : "סיום הסבב ומעבר לסבב הבא";
 
   return <main className="operator-shell" dir="rtl">
     <header className="topbar">
@@ -367,34 +496,26 @@ export default function OperatorApp() {
       </section>
 
       {state.stage !== "finished" ? <>
-        <section className="status-grid compact-status">
-          <article className="hero-card compact-hero">
-            <span className="pill">{stageLabels[state.stage]}</span>
-            <h2>{state.stage === "practice" ? `סבב אימון ${state.currentRound}` : state.stage === "competition" ? `סבב ${state.currentRound} · משתתף ${state.currentParticipant}` : "הניסוי טרם התחיל"}</h2>
-            <TimerControls state={state} setState={setState} />
-          </article>
-          <article className="panel compact-panel">
-            {state.stage === "practice" ? <>
-              <p className="panel-label">התקדמות באימון</p>
-              <div className="phase-number"><strong>{state.currentRound}</strong><span>מתוך {state.settings.practiceRounds} סבבים</span></div>
-              <button className="primary wide" onClick={nextPracticeRound}>{practiceActionLabel}</button>
-            </> : state.stage === "competition" ? <>
-              <p className="panel-label">בקרת התור</p>
-              <div className="control-selects">
-                <label className="inline-select">סבב<select value={state.currentRound} onChange={(event) => setState((current) => ({ ...current, currentRound: Number(event.target.value), timer: freshTimer(current) }))}>{Array.from({ length: state.settings.competitionRounds }, (_, index) => <option key={index} value={index + 1}>{index + 1}</option>)}</select></label>
-                <label className="inline-select">משתתף<select value={state.currentParticipant} onChange={(event) => setState((current) => ({ ...current, currentParticipant: Number(event.target.value), timer: freshTimer(current) }))}>{Array.from({ length: state.settings.participantCount }, (_, index) => <option key={index} value={index + 1}>{index + 1}</option>)}</select></label>
-              </div>
-              <div className="current-score"><span>הניקוד בתור</span><strong>{total(currentValues)}</strong></div>
-              <button className="secondary wide" onClick={nextCompetitionTurn}>{state.currentParticipant === state.settings.participantCount && state.currentRound === state.settings.competitionRounds ? "סיום התחרות" : "מעבר לתור הבא"}</button>
-            </> : <>
-              <p className="panel-label">לפני ההתחלה</p><h2>יש לאשר תחילה את ההגדרות</h2><button className="primary wide" onClick={() => setTab("settings")}>מעבר להגדרות</button>
-            </>}
-          </article>
-        </section>
-        {state.stage === "competition" && <section className="panel score-panel"><ScoreEditor state={state} setState={setState} round={state.currentRound} participant={state.currentParticipant} onComplete={nextCompetitionTurn} /></section>}
+        {state.stage === "setup" ? <section className="panel callout"><h2>יש לאשר תחילה את הגדרות ההרצה</h2><button className="primary" onClick={() => setTab("settings")}>מעבר להגדרות</button></section> : <section className="run-workspace">
+          <div className="run-control-column">
+            <article className="hero-card compact-hero">
+              <span className="pill">{stageLabels[state.stage]}</span>
+              <h2>{state.stage === "practice" ? `סבב אימון ${state.currentRound} · תיעוד עמדה ${state.currentParticipant}` : `סבב ${state.currentRound} · משתתף ${state.currentParticipant}`}</h2>
+              <TimerControls state={state} setState={setState} />
+            </article>
+            <TurnNavigator
+              state={state}
+              practice={state.stage === "practice"}
+              onSelect={selectTurn}
+              onPrevious={previousTurn}
+              onNext={state.stage === "practice" ? nextPracticeTurn : nextCompetitionTurn}
+            />
+          </div>
+          <section className="panel score-panel"><ScoreEditor state={state} setState={setState} practice={state.stage === "practice"} round={state.currentRound} participant={state.currentParticipant} onComplete={state.stage === "practice" ? nextPracticeTurn : nextCompetitionTurn} /></section>
+        </section>}
       </> : <>
         <section className="hero-card finished-hero"><span className="pill">התחרות הסתיימה</span><div className="winner-block"><p>{winners(state).length > 1 ? "הזוכים בתחרות" : "הזוכה בתחרות"}</p><strong>{winners(state).map((row) => `#${row.participant}`).join(", ")}</strong><span>{winners(state)[0]?.score ?? 0} נקודות</span></div></section>
-        <section className="panel finish-actions"><button className="primary" onClick={() => exportWorkbook(state)}>הורדת Excel מלא</button><a className="secondary button-link" href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer">פתיחת תיקיית Google Drive</a><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button></section>
+        <section className="panel finish-actions"><button className="primary" onClick={() => exportWorkbook(state)}>הורדת Excel מלא</button><button className="secondary" onClick={connectDriveFolder}>{driveFolder ? "עדכון Excel בתיקייה" : "חיבור תיקיית Drive מקומית"}</button><a className="secondary button-link" href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer">פתיחת התיקייה בענן</a><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button><p className="drive-finish-status">{driveStatus}</p></section>
       </>}
     </>}
 
@@ -407,7 +528,7 @@ export default function OperatorApp() {
         ["participantCount", "מספר משתתפים", 1, 30], ["dartCount", "חצים בסבב", 1, 20], ["practiceRounds", "סבבי אימון", 0, 20], ["competitionRounds", "סבבי תחרות", 1, 20],
         ["durationSeconds", "זמן זריקה בשניות", 3, 120], ["countdownSeconds", "ספירה לאחור", 0, 10], ["maxScore", "ניקוד מרבי לחץ", 1, 100], ["prizeAmount", "פרס לזוכה בשקלים", 0, 10000],
       ] as [keyof Settings, string, number, number][]).map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={state.settings[key]} onChange={(event) => updateSetting(key, clampInteger(Number(event.target.value), min, max))} /></label>)}</div><button className="primary start-experiment" onClick={beginPractice}>אישור ההגדרות ומעבר לאימון</button></article>
-      <article className="panel"><p className="panel-label">פרטי הרצה ושמירה</p><h2>גיבוי ויצוא</h2><label className="stacked-label">קוד הרצה<input value={state.sessionCode} onChange={(event) => setState((current) => ({ ...current, sessionCode: event.target.value }))} /></label><p className="field-help">הקוד נוצר אוטומטית משם הניסוי ומתאריך ההרצה.</p><div className="backup-card"><strong>גיבוי חי</strong><p>כל שינוי נשמר במחשב ומגובה מיד במאגר מקוון כאשר יש אינטרנט. כך ניתן לשחזר הרצה גם ממחשב אחר באמצעות קוד ההרצה.</p><button className="secondary" onClick={restoreFromLiveBackup}>שחזור לפי קוד ההרצה</button>{restoreMessage && <span>{restoreMessage}</span>}</div><label className="stacked-label">הערות וחריגים<textarea rows={5} value={state.notes} onChange={(event) => setState((current) => ({ ...current, notes: event.target.value }))} /></label><div className="drive-card"><strong>Google Drive</strong><p>בסיום התחרות יורד קובץ Excel מלא. ניתן לפתוח מכאן את תיקיית המחקר ולהעלות אליו את הקובץ.</p><a href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer">פתיחת תיקיית Pothos ב-Drive</a></div><div className="button-stack"><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel עכשיו</button><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button></div></article>
+      <article className="panel"><p className="panel-label">פרטי הרצה ושמירה</p><h2>גיבוי ויצוא</h2><label className="stacked-label">קוד הרצה<input value={state.sessionCode} onChange={(event) => setState((current) => ({ ...current, sessionCode: event.target.value }))} /></label><p className="field-help">הקוד נוצר אוטומטית משם הניסוי ומתאריך ההרצה.</p><div className="backup-card"><strong>גיבוי חי</strong><p>כל שינוי נשמר במחשב ומגובה מיד במאגר מקוון כאשר יש אינטרנט. כך ניתן לשחזר הרצה גם ממחשב אחר באמצעות קוד ההרצה.</p><button className="secondary" onClick={restoreFromLiveBackup}>שחזור לפי קוד ההרצה</button>{restoreMessage && <span>{restoreMessage}</span>}</div><label className="stacked-label">הערות וחריגים<textarea rows={5} value={state.notes} onChange={(event) => setState((current) => ({ ...current, notes: event.target.value }))} /></label><div className="drive-card"><strong>סנכרון Excel ל-Google Drive למחשב</strong><p>התקינו Google Drive למחשב ובחרו פעם אחת את התיקייה המסונכרנת pothos_data. לאחר החיבור, אותו קובץ Excel יתעדכן אוטומטית בכל שינוי.</p><button className="secondary" onClick={connectDriveFolder}>{driveFolder ? "אישור מחדש או החלפת תיקייה" : "בחירת תיקייה מסונכרנת"}</button><span className="drive-status">{driveStatus}</span><a href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer">פתיחת pothos_data בענן</a></div><div className="button-stack"><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel עכשיו</button><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button></div></article>
     </section>}
   </main>;
 }

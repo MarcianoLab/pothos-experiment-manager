@@ -1,7 +1,7 @@
 import type { ExperimentState } from "./experiment";
 import { cumulativeTotal, roundTotal, throwsFor, total, winners } from "./experiment";
 
-export async function exportWorkbook(state: ExperimentState) {
+async function buildWorkbook(state: ExperimentState) {
   const XLSX = await import("xlsx");
   const competition: Record<string, string | number>[] = [];
   const practice: Record<string, string | number>[] = [];
@@ -108,5 +108,15 @@ export async function exportWorkbook(state: ExperimentState) {
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(practice), "Practice_private");
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(allThrows), "All_throws_long");
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(metadata), "Session_metadata");
+  return { XLSX, workbook };
+}
+
+export async function workbookBytes(state: ExperimentState) {
+  const { XLSX, workbook } = await buildWorkbook(state);
+  return XLSX.write(workbook, { bookType: "xlsx", type: "array", compression: true }) as ArrayBuffer;
+}
+
+export async function exportWorkbook(state: ExperimentState) {
+  const { XLSX, workbook } = await buildWorkbook(state);
   XLSX.writeFile(workbook, `${state.sessionCode}.xlsx`, { compression: true });
 }
