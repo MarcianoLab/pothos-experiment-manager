@@ -15,9 +15,9 @@ import {
 } from "../lib/experiment";
 import { exportWorkbook } from "../lib/exportWorkbook";
 import {
-  chooseDriveFolder,
+  chooseFolder,
   ensureFolderPermission,
-  getStoredDriveFolder,
+  getStoredFolder,
   syncWorkbookToFolder,
   type WritableDirectoryHandle,
 } from "../lib/driveFolderSync";
@@ -26,6 +26,14 @@ import { useExperiment } from "../lib/useExperiment";
 type Tab = "run" | "scores" | "practice" | "settings";
 
 const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/13dk3HXybtUQ5-kj0t55Ggj5wXN-R89qo";
+function validDriveFolderUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "drive.google.com" ? url.toString() : DRIVE_FOLDER_URL;
+  } catch {
+    return DRIVE_FOLDER_URL;
+  }
+}
 const stageLabels: Record<Stage, string> = {
   setup: "לפני ההתחלה",
   practice: "אימון",
@@ -59,22 +67,55 @@ function speakHebrew(text: string, cancelPrevious = false) {
 
 const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 
-function playBeep(frequency = 880, duration = 120) {
+let sharedAudioContext: AudioContext | null = null;
+
+function getAudioContext() {
   const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
+  if (!AudioContextClass) return null;
+  if (!sharedAudioContext) sharedAudioContext = new AudioContextClass();
+  return sharedAudioContext;
+}
+
+function prepareAudio() {
+  const context = getAudioContext();
+  if (context?.state === "suspended") void context.resume();
+}
+
+function scheduleTone(context: AudioContext, startAt: number, frequency: number, duration: number) {
   const oscillator = context.createOscillator();
   const gain = context.createGain();
   oscillator.type = "sine";
   oscillator.frequency.value = frequency;
-  gain.gain.setValueAtTime(.001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(.22, context.currentTime + .01);
-  gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration / 1000);
+  gain.gain.setValueAtTime(.001, startAt);
+  gain.gain.exponentialRampToValueAtTime(.22, startAt + .01);
+  gain.gain.exponentialRampToValueAtTime(.001, startAt + duration / 1000);
   oscillator.connect(gain);
   gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + duration / 1000 + .02);
-  oscillator.onended = () => void context.close();
+  oscillator.start(startAt);
+  oscillator.stop(startAt + duration / 1000 + .02);
+  return oscillator;
+}
+
+function playBeep(frequency = 880, duration = 120) {
+  const context = getAudioContext();
+  if (!context) return;
+  if (context.state === "suspended") void context.resume();
+  scheduleTone(context, context.currentTime + .01, frequency, duration);
+}
+
+function scheduleFinalBeeps(endAt: number) {
+  const context = getAudioContext();
+  if (!context) return () => undefined;
+  if (context.state === "suspended") void context.resume();
+  const sources: OscillatorNode[] = [];
+  [3, 2, 1].forEach((second) => {
+    const delaySeconds = (endAt - Date.now() - second * 1000) / 1000;
+    if (delaySeconds < -.08) return;
+    sources.push(scheduleTone(context, context.currentTime + Math.max(.01, delaySeconds), 760 + (3 - second) * 130, 150));
+  });
+  return () => sources.forEach((source) => {
+    try { source.stop(); } catch { /* the tone has already ended */ }
+  });
 }
 
 function freshTimer(current: ExperimentState) {
@@ -94,7 +135,9 @@ function TimerControls({ state, setState }: {
   const { timer, settings } = state;
   const active = timer.phase === "running" || timer.phase === "countdown";
 
-  const start = () => setState((current) => {
+  const start = () => {
+    prepareAudio();
+    setState((current) => {
     if (current.timer.phase === "paused") {
       const resumedPhase = current.timer.pausedPhase ?? "running";
       const remaining = resumedPhase === "countdown" ? current.timer.countdownLeft : current.timer.secondsLeft;
@@ -113,7 +156,8 @@ function TimerControls({ state, setState }: {
         pausedPhase: undefined,
       },
     };
-  });
+    });
+  };
 
   const pause = () => setState((current) => {
     if (current.timer.phase !== "running" && current.timer.phase !== "countdown") return current;
@@ -281,9 +325,16 @@ export default function OperatorApp() {
   const [practiceParticipant, setPracticeParticipant] = useState(1);
   const [restoreMessage, setRestoreMessage] = useState("");
   const [driveFolder, setDriveFolder] = useState<WritableDirectoryHandle | null>(null);
+  const [localFolder, setLocalFolder] = useState<WritableDirectoryHandle | null>(null);
+  const [saveToDrive, setSaveToDrive] = useState(true);
+  const [saveToLocal, setSaveToLocal] = useState(true);
+  const [driveFolderUrl, setDriveFolderUrl] = useState(DRIVE_FOLDER_URL);
   const [driveStatus, setDriveStatus] = useState("טרם נשמר קובץ ל-Drive");
+  const [localStatus, setLocalStatus] = useState("טרם נבחרה תיקייה מקומית");
+  const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const lastAnnouncement = useRef("");
   const countdownRun = useRef(0);
+  const sessionPromptShown = useRef(false);
 
   useEffect(() => {
     if (state.timer.phase !== "running") return;
@@ -318,7 +369,7 @@ export default function OperatorApp() {
         ]);
       }
       if (cancelled || run !== countdownRun.current) return;
-      await speakHebrew("התחילו");
+      await speakHebrew("הַתְחִילוּ");
       if (cancelled || run !== countdownRun.current) return;
       setState((current) => current.timer.phase === "countdown" ? {
         ...current,
@@ -340,11 +391,15 @@ export default function OperatorApp() {
   }, [state.timer.phase, setState]);
 
   useEffect(() => {
+    if (state.timer.phase !== "running" || !state.timer.endAt) return;
+    return scheduleFinalBeeps(state.timer.endAt);
+  }, [state.timer.phase, state.timer.endAt]);
+
+  useEffect(() => {
     const { timer } = state;
     const key = `${timer.phase}-${timer.phase === "countdown" ? timer.countdownLeft : timer.secondsLeft}`;
     if (lastAnnouncement.current === key) return;
     lastAnnouncement.current = key;
-    if (timer.phase === "running" && timer.secondsLeft <= 3 && timer.secondsLeft > 0) playBeep(760 + (3 - timer.secondsLeft) * 130, 150);
     if (timer.phase === "finished") {
       playBeep(520, 260);
       speakHebrew("הזמן הסתיים");
@@ -352,16 +407,27 @@ export default function OperatorApp() {
   }, [state.timer, state.settings.durationSeconds, state.settings.countdownSeconds]);
 
   useEffect(() => {
-    getStoredDriveFolder().then(async (handle) => {
-      if (!handle) return;
-      if (await ensureFolderPermission(handle)) {
-        setDriveFolder(handle);
-        setDriveStatus(`מחובר לתיקייה: ${handle.name}`);
-      } else {
-        setDriveStatus(`נמצאה התיקייה ${handle.name} · יש לאשר מחדש גישה`);
+    Promise.all([getStoredFolder("drive-folder"), getStoredFolder("local-folder")]).then(async ([drive, local]) => {
+      if (drive) {
+        setDriveFolder(drive);
+        setDriveStatus(await ensureFolderPermission(drive)
+          ? `תיקיית Drive מוכנה: ${drive.name}`
+          : `נמצאה ${drive.name} · יש לאשר מחדש גישה`);
+      }
+      if (local) {
+        setLocalFolder(local);
+        setLocalStatus(await ensureFolderPermission(local)
+          ? `התיקייה המקומית מוכנה: ${local.name}`
+          : `נמצאה ${local.name} · יש לאשר מחדש גישה`);
       }
     }).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated || sessionPromptShown.current) return;
+    sessionPromptShown.current = true;
+    setShowSessionPrompt(true);
+  }, [hydrated]);
 
   const changeStage = (stage: Stage) => setState((current) => ({
     ...current,
@@ -444,6 +510,14 @@ export default function OperatorApp() {
     setTab("settings");
   };
 
+  const startNewSessionFromPrompt = () => {
+    replaceState(createExperiment());
+    setPracticeRound(1);
+    setPracticeParticipant(1);
+    setTab("settings");
+    setShowSessionPrompt(false);
+  };
+
   const restoreFromLiveBackup = async () => {
     setRestoreMessage("מחפש את ההרצה בגיבוי החי…");
     try {
@@ -457,23 +531,54 @@ export default function OperatorApp() {
     }
   };
 
-  const connectDriveFolder = async () => {
-    try {
-      const handle = driveFolder && await ensureFolderPermission(driveFolder, true)
-        ? driveFolder
-        : await chooseDriveFolder();
-      setDriveFolder(handle);
-      setDriveStatus(`שומר בתיקייה: ${handle.name}…`);
-      await syncWorkbookToFolder(state, handle);
-      setDriveStatus(`Excel נשמר ב-Drive: ${handle.name}`);
-    } catch (error) {
-      if (error instanceof Error && error.message === "unsupported") {
-        await exportWorkbook(state);
-        window.open(DRIVE_FOLDER_URL, "_blank", "noopener,noreferrer");
-        setDriveStatus("הקובץ הורד והתיקייה נפתחה · יש להעלות אותו אליה.");
-      } else {
-        setDriveStatus("השמירה בוטלה או שהגישה לתיקייה לא אושרה.");
+  const saveWorkbookDestinations = async () => {
+    if (!saveToDrive && !saveToLocal) {
+      setDriveStatus("לא נבחר יעד שמירה");
+      setLocalStatus("לא נבחר יעד שמירה");
+      return;
+    }
+
+    let manualDriveUpload = false;
+    if (saveToDrive) {
+      try {
+        const handle = driveFolder && await ensureFolderPermission(driveFolder, true)
+          ? driveFolder
+          : await chooseFolder("drive-folder");
+        setDriveFolder(handle);
+        setDriveStatus(`שומר ל-Drive דרך ${handle.name}…`);
+        await syncWorkbookToFolder(state, handle);
+        setDriveStatus(`Excel נשמר בתיקיית Drive: ${handle.name}`);
+      } catch (error) {
+        manualDriveUpload = true;
+        setDriveStatus(error instanceof Error && error.message === "unsupported"
+          ? "הדפדפן אינו מאפשר כתיבה לתיקיית Drive · עוברים להעלאה ידנית"
+          : "לא נבחרה תיקיית Drive מסונכרנת · עוברים להעלאה ידנית");
       }
+    }
+
+    if (saveToLocal) {
+      try {
+        const handle = localFolder && await ensureFolderPermission(localFolder, true)
+          ? localFolder
+          : await chooseFolder("local-folder");
+        setLocalFolder(handle);
+        setLocalStatus(`שומר במחשב דרך ${handle.name}…`);
+        await syncWorkbookToFolder(state, handle);
+        setLocalStatus(`Excel נשמר במחשב: ${handle.name}`);
+      } catch (error) {
+        if (error instanceof Error && error.message === "unsupported") {
+          await exportWorkbook(state);
+          setLocalStatus("Excel הורד לתיקיית ההורדות במחשב");
+        } else {
+          setLocalStatus("השמירה המקומית בוטלה או לא אושרה");
+        }
+      }
+    }
+
+    if (manualDriveUpload) {
+      if (!saveToLocal) await exportWorkbook(state);
+      window.open(validDriveFolderUrl(driveFolderUrl), "_blank", "noopener,noreferrer");
+      setDriveStatus("תיקיית Drive נפתחה · יש להעלות אליה את קובץ ה-Excel");
     }
   };
 
@@ -487,6 +592,17 @@ export default function OperatorApp() {
   };
 
   return <main className={`operator-shell ${tab === "run" ? "operator-shell-run" : ""}`} dir="rtl">
+    {showSessionPrompt && <div className="session-choice-backdrop" role="presentation">
+      <section className="session-choice" role="dialog" aria-modal="true" aria-labelledby="session-choice-title">
+        <p className="panel-label">כניסה למערכת פוטוס</p>
+        <h2 id="session-choice-title">האם להתחיל סשן חדש?</h2>
+        <p>נמצאו במחשב נתונים מההרצה <strong>{state.sessionCode}</strong>. אפשר לפתוח הרצה חדשה ונקייה או להמשיך את ההרצה הקיימת.</p>
+        <div className="session-choice-actions">
+          <button className="primary" onClick={startNewSessionFromPrompt}>כן, להתחיל סשן חדש</button>
+          <button className="secondary" onClick={() => setShowSessionPrompt(false)}>להמשיך את הסשן הקודם</button>
+        </div>
+      </section>
+    </div>}
     <header className="topbar">
       <div><p className="eyebrow">מערכת ניהול ניסוי · {state.sessionCode}</p><h1>Pothos · תחרות הדיוק</h1></div>
       <div className="top-actions"><span className={`sync-badge ${saveStatus}`}><i />{saveLabels[saveStatus]}</span><button className="secondary" onClick={() => window.open("/display", "pothos-display", "popup=yes")}>פתיחת מסך המשתתפים</button></div>
@@ -524,7 +640,7 @@ export default function OperatorApp() {
         </section>}
       </> : <>
         <section className="hero-card finished-hero"><span className="pill">התחרות הסתיימה</span><div className="winner-block"><p>{winners(state).length > 1 ? "הזוכים בתחרות" : "הזוכה בתחרות"}</p><strong>{winners(state).map((row) => `#${row.participant}`).join(", ")}</strong><span>{winners(state)[0]?.score ?? 0} נקודות</span></div></section>
-        <section className="panel finish-actions"><button className="primary" onClick={connectDriveFolder}>שמירת Excel ל-Drive</button><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><a className="secondary button-link" href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer">פתיחת התיקייה בענן</a><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button><p className="drive-finish-status">{driveStatus}</p></section>
+        <section className="panel finish-actions"><button className="primary" onClick={saveWorkbookDestinations}>שמירה ליעדים שנבחרו</button><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><a className="secondary button-link" href={validDriveFolderUrl(driveFolderUrl)} target="_blank" rel="noreferrer">פתיחת התיקייה בענן</a><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button><p className="drive-finish-status">{driveStatus} · {localStatus}</p></section>
       </>}
     </div>}
 
@@ -537,7 +653,14 @@ export default function OperatorApp() {
         ["participantCount", "מספר משתתפים", 1, 30], ["dartCount", "חצים בסבב", 1, 20], ["practiceRounds", "סבבי אימון", 0, 20], ["competitionRounds", "סבבי תחרות", 1, 20],
         ["durationSeconds", "זמן זריקה בשניות", 3, 120], ["countdownSeconds", "ספירה לאחור", 0, 10], ["maxScore", "ניקוד מרבי לחץ", 1, 100], ["prizeAmount", "פרס לזוכה בשקלים", 0, 10000],
       ] as [keyof Settings, string, number, number][]).map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} value={state.settings[key]} onChange={(event) => updateSetting(key, clampInteger(Number(event.target.value), min, max))} /></label>)}</div><button className="primary start-experiment" onClick={beginPractice}>אישור ההגדרות ומעבר לאימון</button></article>
-      <article className="panel"><p className="panel-label">פרטי הרצה ושמירה</p><h2>גיבוי ויצוא</h2><label className="stacked-label">קוד הרצה<input value={state.sessionCode} onChange={(event) => setState((current) => ({ ...current, sessionCode: event.target.value }))} /></label><p className="field-help">הקוד נוצר אוטומטית משם הניסוי ומתאריך ההרצה.</p><div className="backup-card"><strong>גיבוי חי</strong><p>כל שינוי נשמר במחשב ומגובה מיד במאגר מקוון כאשר יש אינטרנט. כך ניתן לשחזר הרצה גם ממחשב אחר באמצעות קוד ההרצה.</p><button className="secondary" onClick={restoreFromLiveBackup}>שחזור לפי קוד ההרצה</button>{restoreMessage && <span>{restoreMessage}</span>}</div><label className="stacked-label">הערות וחריגים<textarea rows={5} value={state.notes} onChange={(event) => setState((current) => ({ ...current, notes: event.target.value }))} /></label><div className="drive-card"><strong>שמירת Excel לתיקיית pothos_data</strong><p>לחצו לשמירה יזומה. בפעם הראשונה בחרו במחשב את תיקיית pothos_data שבתוך Google Drive. לאחר מכן הכפתור יעדכן בה את קובץ ההרצה.</p><button className="primary" onClick={connectDriveFolder}>שמירת Excel ל-Drive</button><span className="drive-status">{driveStatus}</span><a href={DRIVE_FOLDER_URL} target="_blank" rel="noreferrer">פתיחת pothos_data בענן</a></div><div className="button-stack"><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button></div></article>
+      <article className="panel"><p className="panel-label">פרטי הרצה ושמירה</p><h2>גיבוי ויצוא</h2><label className="stacked-label">קוד הרצה<input value={state.sessionCode} onChange={(event) => setState((current) => ({ ...current, sessionCode: event.target.value }))} /></label><p className="field-help">הקוד נוצר אוטומטית משם הניסוי ומתאריך ההרצה.</p><div className="backup-card"><strong>גיבוי חי</strong><p>כל שינוי נשמר במחשב ומגובה מיד במאגר מקוון כאשר יש אינטרנט. כך ניתן לשחזר הרצה גם ממחשב אחר באמצעות קוד ההרצה.</p><button className="secondary" onClick={restoreFromLiveBackup}>שחזור לפי קוד ההרצה</button>{restoreMessage && <span>{restoreMessage}</span>}</div><label className="stacked-label">הערות וחריגים<textarea rows={5} value={state.notes} onChange={(event) => setState((current) => ({ ...current, notes: event.target.value }))} /></label>
+        <div className="drive-card destination-card"><strong>יעדי שמירת Excel</strong><p>אפשר לשמור במקביל בתיקיית Google Drive מסונכרנת ובתיקייה פיזית במחשב, או לבטל כל יעד בנפרד.</p>
+          <label className="destination-option"><input type="checkbox" checked={saveToDrive} onChange={(event) => setSaveToDrive(event.target.checked)} /><span><b>Google Drive</b><small>שמירה דרך התיקייה המסונכרנת במחשב</small></span></label>
+          {saveToDrive && <div className="destination-details"><label className="stacked-label">כתובת תיקיית Drive<input type="url" value={driveFolderUrl} onChange={(event) => setDriveFolderUrl(event.target.value)} /></label><div className="destination-actions"><button className="secondary" onClick={async () => { try { const handle = await chooseFolder("drive-folder"); setDriveFolder(handle); setDriveStatus(`נבחרה תיקיית Drive: ${handle.name}`); } catch { setDriveStatus("בחירת תיקיית Drive בוטלה"); } }}>{driveFolder ? "החלפת תיקיית Drive המסונכרנת" : "בחירת תיקיית Drive המסונכרנת"}</button><a href={validDriveFolderUrl(driveFolderUrl)} target="_blank" rel="noreferrer">פתיחת התיקייה בענן</a></div><span className="drive-status">{driveStatus}</span></div>}
+          <label className="destination-option"><input type="checkbox" checked={saveToLocal} onChange={(event) => setSaveToLocal(event.target.checked)} /><span><b>תיקייה פיזית במחשב</b><small>עותק נוסף במיקום שתבחרו</small></span></label>
+          {saveToLocal && <div className="destination-details"><button className="secondary" onClick={async () => { try { const handle = await chooseFolder("local-folder"); setLocalFolder(handle); setLocalStatus(`נבחרה תיקייה מקומית: ${handle.name}`); } catch { setLocalStatus("בחירת התיקייה המקומית בוטלה"); } }}>{localFolder ? "החלפת התיקייה המקומית" : "בחירת תיקייה מקומית"}</button><span className="drive-status">{localStatus}</span></div>}
+          <button className="primary wide" onClick={saveWorkbookDestinations}>שמירה עכשיו ליעדים שנבחרו</button>
+        </div><div className="button-stack"><button className="secondary" onClick={() => exportWorkbook(state)}>הורדת Excel למחשב</button><button className="secondary" onClick={newSession}>פתיחת הרצה חדשה</button></div></article>
     </section>}
   </main>;
 }

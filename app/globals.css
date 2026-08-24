@@ -432,3 +432,109 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
   .competition-layout { grid-template-rows: clamp(78px, 11vh, 112px) minmax(170px, 1fr) minmax(250px, 46vh); }
   .stage-competition .display-timer.compact { font-size: clamp(120px, 23vh, 240px); }
 }
+
+/* Full-width experiment console. */
+.run-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(140px, 19vh) minmax(138px, 18vh) minmax(0, 1fr);
+}
+.operator-timer {
+  grid-column: 1;
+  direction: ltr;
+  grid-template-columns: minmax(180px, .55fr) minmax(500px, 1.45fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "clock context"
+    "clock actions";
+  column-gap: clamp(24px, 4vw, 70px);
+  row-gap: 6px;
+}
+.operator-timer .timer-context { grid-area: context; direction: rtl; align-self: end; }
+.operator-timer .timer-control-body { display: contents; }
+.operator-timer .timer-readout { grid-area: clock; direction: rtl; align-self: center; }
+.operator-timer .button-row { grid-area: actions; direction: rtl; justify-content: flex-start; align-self: start; }
+.operator-timer .button-row button { flex: 0 1 190px; }
+.operator-timer .timer-preview { font-size: clamp(76px, 9vh, 108px); }
+.operator-timer .timer-context h2 { font-size: clamp(24px, 2.5vw, 38px); }
+.turn-navigator {
+  display: grid;
+  grid-template-columns: minmax(210px, .34fr) minmax(0, 1fr) minmax(235px, .36fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "heading heading heading"
+    "rounds participants actions";
+  gap: 8px 14px;
+  overflow: hidden;
+}
+.turn-nav-heading { grid-area: heading; margin: 0; }
+.turn-navigator .round-tabs { grid-area: rounds; align-items: stretch; padding: 0; }
+.turn-navigator .round-tabs button { flex: 1 1 70px; }
+.turn-navigator .participant-queue { grid-area: participants; margin: 0; align-self: stretch; }
+.turn-navigator .turn-nav-actions { grid-area: actions; margin: 0; align-self: stretch; }
+.turn-navigator .turn-nav-actions button { min-height: 100%; }
+.score-panel { width: 100%; padding: 15px 20px; }
+.score-panel .dart-grid { grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); }
+.score-panel .dart-grid input { font-size: 23px; }
+
+/* New-session choice shown on every entry. */
+.session-choice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 22, 17, .72);
+  backdrop-filter: blur(5px);
+}
+.session-choice {
+  width: min(560px, 96vw);
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 28px 80px rgba(0,0,0,.28);
+}
+.session-choice h2 { margin-bottom: 12px; font-size: clamp(26px, 4vw, 38px); }
+.session-choice > p:not(.panel-label) { color: var(--muted); line-height: 1.65; }
+.session-choice-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
+
+/* Independent Drive and physical-computer destinations. */
+.destination-card { display: grid; gap: 10px; }
+.destination-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255,255,255,.76);
+  cursor: pointer;
+}
+.destination-option input { width: 19px; height: 19px; accent-color: var(--green); }
+.destination-option span { display: flex; flex-direction: column; gap: 3px; }
+.destination-option b { color: var(--ink); }
+.destination-option small { color: var(--muted); font-weight: 600; }
+.destination-details { padding: 0 14px 10px; }
+.destination-details .stacked-label { margin-top: 2px; }
+.destination-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.destination-actions a { color: var(--green); font-weight: 800; }
+
+@media (max-width: 900px), (max-height: 620px) {
+  .run-workspace { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .operator-timer {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "context" "clock" "actions";
+  }
+  .turn-navigator {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas: "heading" "rounds" "participants" "actions";
+    overflow: visible;
+  }
+}
+
+@media (max-width: 620px) {
+  .session-choice-actions { grid-template-columns: 1fr; }
+}

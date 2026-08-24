@@ -5,7 +5,7 @@ import { workbookBytes } from "./exportWorkbook";
 
 const DATABASE_NAME = "pothos-drive-folder";
 const STORE_NAME = "handles";
-const HANDLE_KEY = "drive-folder";
+export type FolderDestination = "drive-folder" | "local-folder";
 
 type PermissionStateValue = "granted" | "denied" | "prompt";
 
@@ -38,21 +38,21 @@ function openDatabase() {
   });
 }
 
-async function storeHandle(handle: WritableDirectoryHandle) {
+async function storeHandle(handle: WritableDirectoryHandle, destination: FolderDestination) {
   const database = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).put(handle, HANDLE_KEY);
+    transaction.objectStore(STORE_NAME).put(handle, destination);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
   database.close();
 }
 
-export async function getStoredDriveFolder() {
+export async function getStoredFolder(destination: FolderDestination) {
   const database = await openDatabase();
   const handle = await new Promise<WritableDirectoryHandle | null>((resolve, reject) => {
-    const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(HANDLE_KEY);
+    const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(destination);
     request.onsuccess = () => resolve((request.result as WritableDirectoryHandle | undefined) ?? null);
     request.onerror = () => reject(request.error);
   });
@@ -60,12 +60,12 @@ export async function getStoredDriveFolder() {
   return handle;
 }
 
-export async function chooseDriveFolder() {
+export async function chooseFolder(destination: FolderDestination) {
   if (!window.showDirectoryPicker) throw new Error("unsupported");
   const handle = await window.showDirectoryPicker({ mode: "readwrite" });
   const permission = await handle.requestPermission({ mode: "readwrite" });
   if (permission !== "granted") throw new Error("permission");
-  await storeHandle(handle);
+  await storeHandle(handle, destination);
   return handle;
 }
 
