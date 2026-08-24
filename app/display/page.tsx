@@ -19,8 +19,8 @@ export default function Display() {
 
     {state.stage === "competition" && <div className="competition-layout">
       <section className="competition-topline" aria-label="פרטי התור">
-        <div className="competition-meta"><span>שלב</span><strong>תחרות הדיוק</strong></div>
-        <div className="competition-meta current-shooter"><span>המשתתף בתור</span><strong>מספר {state.currentParticipant}</strong></div>
+        <div className="competition-meta competition-name"><strong>תחרות הדיוק</strong></div>
+        <div className="competition-meta current-shooter"><strong>משתתף בעמדה מספר #{state.currentParticipant}</strong></div>
         <div className="competition-meta"><span>סבב</span><strong>{state.currentRound} מתוך {state.settings.competitionRounds}</strong></div>
       </section>
 

@@ -538,3 +538,48 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 620px) {
   .session-choice-actions { grid-template-columns: 1fr; }
 }
+
+/* Screenshot-led refinements for the run console. */
+.operator-timer {
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 13px 28px;
+  overflow: hidden;
+}
+.operator-timer .timer-context { align-self: center; min-height: 0; }
+.operator-timer .timer-context h2 { margin-top: 7px; font-size: clamp(23px, 2.25vw, 34px); line-height: 1.08; }
+.operator-timer .pill { padding: 6px 11px; font-size: 12px; }
+.operator-timer .button-row {
+  min-width: 0;
+  align-self: end;
+  flex-wrap: nowrap;
+  padding: 0;
+}
+.operator-timer .button-row button { min-height: 40px; padding: 9px 15px; }
+.turn-navigator {
+  grid-template-columns: minmax(210px, .3fr) minmax(0, 1fr);
+  grid-template-areas:
+    "heading heading"
+    "rounds participants";
+}
+.score-turn-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+.score-turn-actions button { min-height: 44px; }
+.competition-meta.competition-name strong { margin-top: 0; }
+.competition-meta.current-shooter strong {
+  margin-top: 0;
+  max-width: 100%;
+  font-size: clamp(19px, 2.7vh, 31px);
+  white-space: normal;
+}
+
+@media (max-width: 900px), (max-height: 620px) {
+  .turn-navigator {
+    grid-template-columns: 1fr;
+    grid-template-areas: "heading" "rounds" "participants";
+  }
+  .operator-timer .button-row { flex-wrap: wrap; }
+}

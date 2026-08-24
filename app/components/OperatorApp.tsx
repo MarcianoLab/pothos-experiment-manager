@@ -195,13 +195,17 @@ function TimerControls({ state, setState }: {
   </div>;
 }
 
-function ScoreEditor({ state, setState, practice = false, round, participant, onComplete }: {
+function ScoreEditor({ state, setState, practice = false, round, participant, onComplete, onPrevious, onNext, previousDisabled = false, nextLabel = "התור הבא" }: {
   state: ExperimentState;
   setState: React.Dispatch<React.SetStateAction<ExperimentState>>;
   practice?: boolean;
   round: number;
   participant: number;
   onComplete?: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  previousDisabled?: boolean;
+  nextLabel?: string;
 }) {
   const source = practice ? state.practiceScores : state.competitionScores;
   const values = throwsFor(source, round, participant, state.settings.dartCount);
@@ -278,6 +282,10 @@ function ScoreEditor({ state, setState, practice = false, round, participant, on
       </label>)}
     </div>
     <p className="keyboard-hint">הקלדת ציון מעבירה לחץ הבא. לציון 10 הקלידו 1 ואז 0. Enter עובר קדימה, והחצים עוברים בין השדות.</p>
+    {(onPrevious || onNext) && <div className="score-turn-actions">
+      <button className="secondary" onClick={onPrevious} disabled={previousDisabled}>התור הקודם</button>
+      <button className="primary" onClick={onNext}>{nextLabel}</button>
+    </div>}
     {practice && <p className="privacy-note">אזור זה פרטי לנסיין ואינו מופיע במסך המשתתפים.</p>}
   </div>;
 }
@@ -295,12 +303,10 @@ function Leaderboard({ state, chooseScore }: { state: ExperimentState; chooseSco
   </tbody></table></div>;
 }
 
-function TurnNavigator({ state, practice, onSelect, onPrevious, onNext }: {
+function TurnNavigator({ state, practice, onSelect }: {
   state: ExperimentState;
   practice: boolean;
   onSelect: (round: number, participant: number) => void;
-  onPrevious: () => void;
-  onNext: () => void;
 }) {
   const roundCount = practice ? state.settings.practiceRounds : state.settings.competitionRounds;
   const scores = practice ? state.practiceScores : state.competitionScores;
@@ -314,7 +320,6 @@ function TurnNavigator({ state, practice, onSelect, onPrevious, onNext }: {
       const completed = Object.prototype.hasOwnProperty.call(scores, scoreKey(state.currentRound, participant));
       return <button key={participant} className={`${state.currentParticipant === participant ? "active" : ""} ${completed ? "completed" : ""}`} onClick={() => onSelect(state.currentRound, participant)}><span>{participant}</span><small>{completed ? "תועד" : "ממתין"}</small></button>;
     })}</div>
-    <div className="turn-nav-actions"><button className="secondary" onClick={onPrevious} disabled={currentIndex <= 1}>התור הקודם</button><button className="primary" onClick={onNext}>{currentIndex >= totalTurns ? (practice ? "מעבר לתחרות" : "סיום התחרות") : "התור הבא"}</button></div>
   </section>;
 }
 
@@ -590,6 +595,10 @@ export default function OperatorApp() {
     cloud: "גיבוי חי מעודכן",
     offline: "אין אינטרנט · נשמר במחשב",
   };
+  const activeRoundCount = state.stage === "practice" ? state.settings.practiceRounds : state.settings.competitionRounds;
+  const activeTurnIndex = (state.currentRound - 1) * state.settings.participantCount + state.currentParticipant;
+  const isLastActiveTurn = activeTurnIndex >= activeRoundCount * state.settings.participantCount;
+  const activeNextLabel = isLastActiveTurn ? (state.stage === "practice" ? "מעבר לתחרות" : "סיום התחרות") : "התור הבא";
 
   return <main className={`operator-shell ${tab === "run" ? "operator-shell-run" : ""}`} dir="rtl">
     {showSessionPrompt && <div className="session-choice-backdrop" role="presentation">
@@ -633,10 +642,8 @@ export default function OperatorApp() {
               state={state}
               practice={state.stage === "practice"}
               onSelect={selectTurn}
-              onPrevious={previousTurn}
-              onNext={state.stage === "practice" ? nextPracticeTurn : nextCompetitionTurn}
             />
-          <section className="panel score-panel"><ScoreEditor state={state} setState={setState} practice={state.stage === "practice"} round={state.currentRound} participant={state.currentParticipant} onComplete={state.stage === "practice" ? nextPracticeTurn : nextCompetitionTurn} /></section>
+          <section className="panel score-panel"><ScoreEditor state={state} setState={setState} practice={state.stage === "practice"} round={state.currentRound} participant={state.currentParticipant} onComplete={state.stage === "practice" ? nextPracticeTurn : nextCompetitionTurn} onPrevious={previousTurn} onNext={state.stage === "practice" ? nextPracticeTurn : nextCompetitionTurn} previousDisabled={activeTurnIndex <= 1} nextLabel={activeNextLabel} /></section>
         </section>}
       </> : <>
         <section className="hero-card finished-hero"><span className="pill">התחרות הסתיימה</span><div className="winner-block"><p>{winners(state).length > 1 ? "הזוכים בתחרות" : "הזוכה בתחרות"}</p><strong>{winners(state).map((row) => `#${row.participant}`).join(", ")}</strong><span>{winners(state)[0]?.score ?? 0} נקודות</span></div></section>
