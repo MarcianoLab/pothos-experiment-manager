@@ -13,8 +13,10 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--paper); color: var(--ink); font-family: Arial, "Noto Sans Hebrew", sans-serif; }
-button, input { font: inherit; }
+html { font-family: "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: inherit; }
+button, input, select, textarea, option { font: inherit; font-family: inherit; }
+a, table, th, td { font-family: inherit; }
 button { cursor: pointer; }
 
 .operator-shell { min-height: 100vh; padding: 28px clamp(20px, 4vw, 64px) 64px; }
