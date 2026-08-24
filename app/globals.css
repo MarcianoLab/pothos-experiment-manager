@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Heebo";
+  src: url("/fonts/Heebo-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   --ink: #17251f;
   --muted: #68756e;
@@ -10,13 +18,14 @@
   --mint: #d8eddf;
   --coral: #e96f52;
   --yellow: #f2c94c;
+  --app-font: "Heebo", Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
-html { font-family: "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif; }
-body { margin: 0; background: var(--paper); color: var(--ink); font-family: inherit; }
-button, input, select, textarea, option { font: inherit; font-family: inherit; }
-a, table, th, td { font-family: inherit; }
+html, body { font-family: var(--app-font) !important; }
+body { margin: 0; background: var(--paper); color: var(--ink); }
+button, input, select, textarea, option { font: inherit; font-family: var(--app-font) !important; }
+a, table, th, td { font-family: var(--app-font); }
 button { cursor: pointer; }
 
 .operator-shell { min-height: 100vh; padding: 28px clamp(20px, 4vw, 64px) 64px; }
