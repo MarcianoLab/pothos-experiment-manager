@@ -45,6 +45,9 @@ core data-saving features. The live application is hosted separately from
 GitHub with restricted access, while this repository is the public source of
 truth for the code.
 
+Live application (authorized users only):
+[pothos-experiment-manager.marcianolab.chatgpt.site](https://pothos-experiment-manager.marcianolab.chatgpt.site/)
+
 ## Research use
 
 Before using the system to collect research data, configure the storage
