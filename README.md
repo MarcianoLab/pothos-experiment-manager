@@ -18,9 +18,10 @@ participant display.
 ## Privacy and data
 
 This public repository contains application source code only. It does not
-contain participant records, experiment results, credentials, or database
-contents. The deployed experiment system and its stored data are access
-restricted; making this repository public does not make collected data public.
+contain participant records, experiment results, credentials, access codes, or
+database contents. The deployed system uses a server-validated access code that
+is configured as a protected runtime secret; making this repository public does
+not make collected data or the access code public.
 
 ## Local development
 
@@ -45,7 +46,7 @@ core data-saving features. The live application is hosted separately from
 GitHub with restricted access, while this repository is the public source of
 truth for the code.
 
-Live application (authorized users only):
+Live application (access code required):
 [pothos-experiment-manager.marcianolab.chatgpt.site](https://pothos-experiment-manager.marcianolab.chatgpt.site/)
 
 ## Research use

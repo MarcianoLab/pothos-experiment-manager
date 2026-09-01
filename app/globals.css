@@ -28,6 +28,44 @@ button, input, select, textarea, option { font: inherit; font-family: var(--app-
 a, table, th, td { font-family: var(--app-font); }
 button { cursor: pointer; }
 
+/* Public entry with server-validated experiment access. */
+.access-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(145deg, #071a15 0%, #173f32 58%, #285c49 100%);
+}
+.access-card {
+  width: min(470px, 100%);
+  padding: clamp(28px, 6vw, 46px);
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 26px;
+  background: var(--card);
+  box-shadow: 0 28px 80px rgba(0,0,0,.3);
+}
+.access-brand { margin-bottom: 8px; color: var(--green); font-size: 18px; font-weight: 900; letter-spacing: .04em; }
+.access-card h1 { margin-bottom: 12px; font-size: clamp(29px, 6vw, 40px); }
+.access-copy { margin-bottom: 28px; color: var(--muted); line-height: 1.55; }
+.access-form { display: grid; gap: 12px; }
+.access-form label { color: var(--muted); font-size: 14px; font-weight: 800; }
+.access-form input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: .2em;
+}
+.access-form input:focus { outline: 3px solid rgba(242,201,76,.42); border-color: #c9a42c; }
+.access-form .primary { width: 100%; margin-top: 4px; font-size: 16px; }
+.access-error { margin: -2px 0 0; color: #b63f2b; font-size: 14px; font-weight: 800; }
+
 .operator-shell { min-height: 100vh; padding: 28px clamp(20px, 4vw, 64px) 64px; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
 h1, h2, h3, p { margin-top: 0; }

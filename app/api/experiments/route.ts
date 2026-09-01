@@ -1,8 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { experiments } from "../../../db/schema";
+import { requestHasAccess } from "../../lib/access";
 
 export async function GET(request: Request) {
+  if (!(await requestHasAccess(request))) return Response.json({ error: "unauthorized" }, { status: 401 });
   try {
     const params = new URL(request.url).searchParams;
     const id = params.get("id");
@@ -22,6 +24,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!(await requestHasAccess(request))) return Response.json({ error: "unauthorized" }, { status: 401 });
   try {
     const payload = await request.json() as { id?: string; sessionCode?: string; stage?: string; createdAt?: string; updatedAt?: string };
     if (!payload.id || !payload.sessionCode) return Response.json({ error: "invalid experiment" }, { status: 400 });
