@@ -610,6 +610,62 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
   .session-choice-actions { grid-template-columns: 1fr; }
 }
 
+/* Score-first competition view: reserve most of the projection for results. */
+.stage-competition .competition-layout {
+  grid-template-rows: clamp(58px, 8vh, 86px) clamp(100px, 17vh, 180px) minmax(0, 1fr);
+}
+.stage-competition .competition-clock { flex-direction: row; gap: 4vw; }
+.stage-competition .clock-status { margin: 0; }
+.stage-competition .competition-seconds { flex-direction: row; gap: 14px; }
+.stage-competition .display-timer.compact { font-size: clamp(80px, 14vh, 150px); line-height: 1; }
+.stage-competition .seconds-display > span { margin: 0; }
+.participant-scores {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--score-columns), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--score-rows), minmax(min-content, 1fr));
+  gap: clamp(6px, 1vh, 12px);
+  overflow: auto;
+}
+.participant-score-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: .5vh;
+  padding: clamp(7px, 1vh, 12px) clamp(8px, 1vw, 18px);
+  border: 2px solid #d9ddd7;
+  border-radius: 12px;
+  background: #fff;
+}
+.participant-score-card.current { background: #fff0a8; border-color: #b28b00; }
+.participant-score-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.participant-score-heading h3 { margin: 0; font-size: clamp(16px, 2.3vh, 26px); line-height: 1.2; }
+.participant-score-heading > span { font-size: 14px; font-weight: 800; color: #534100; }
+.participant-score-total { display: flex; flex-direction: column; align-items: center; }
+.participant-score-total strong {
+  color: #153f31;
+  font-size: clamp(36px, calc(22vh / var(--score-rows)), 120px);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.participant-score-total > span { font-size: 14px; color: #46574d; }
+.participant-round-scores { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding-top: .6vh; border-top: 1px solid #ccd4cb; }
+.participant-round-scores > div { min-width: 42px; }
+.participant-round-scores dt { font-size: 14px; line-height: 1.2; color: #46574d; }
+.participant-round-scores dd { margin: 2px 0 0; font-size: clamp(16px, 2.4vh, 26px); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .participant-scores { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: minmax(min-content, 1fr); }
+  .participant-score-total strong { font-size: 40px; }
+  .stage-competition .competition-layout { padding: 8px; gap: 8px; }
+  .stage-competition .competition-meta { padding-inline: 6px; }
+  .stage-competition .competition-meta strong { font-size: 16px; }
+  .stage-competition .scoreboard-heading { flex-wrap: wrap; gap: 2px; }
+}
+
 /* Screenshot-led refinements for the run console. */
 .operator-timer {
   grid-template-rows: minmax(0, 1fr) auto;

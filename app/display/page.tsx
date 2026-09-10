@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { cumulativeTotal, roundTotal, winners } from "../lib/experiment";
+import { cumulativeTotal, roundTotal, scoreKey, winners } from "../lib/experiment";
 import { useExperiment } from "../lib/useExperiment";
 
 export default function Display() {
@@ -34,10 +34,19 @@ export default function Display() {
 
       <section className="scoreboard-panel">
         <div className="scoreboard-heading"><h2>תוצאות מצטברות</h2><span>המשתתף הפעיל מסומן בצהוב</span></div>
-        <div className="public-results" style={{ "--participant-rows": state.settings.participantCount } as CSSProperties}><table><thead><tr><th>משתתף</th>{Array.from({ length: state.settings.competitionRounds }, (_, index) => <th key={index}>סבב {index + 1}</th>)}<th>סה״כ</th></tr></thead><tbody>{Array.from({ length: state.settings.participantCount }, (_, index) => {
+        <div className="participant-scores" style={{ "--score-columns": Math.min(state.settings.participantCount, state.settings.participantCount > 12 ? 5 : 3), "--score-rows": Math.ceil(state.settings.participantCount / (state.settings.participantCount > 12 ? 5 : 3)) } as CSSProperties}>{Array.from({ length: state.settings.participantCount }, (_, index) => {
           const participant = index + 1;
-          return <tr key={participant} className={participant === state.currentParticipant ? "current" : ""}><th>#{participant}</th>{Array.from({ length: state.settings.competitionRounds }, (_, roundIndex) => <td key={roundIndex}>{roundTotal(state, participant, roundIndex + 1)}</td>)}<td>{cumulativeTotal(state, participant)}</td></tr>;
-        })}</tbody></table></div>
+          const active = participant === state.currentParticipant;
+          return <article key={participant} className={`participant-score-card${active ? " current" : ""}`} aria-label={`משתתף ${participant}${active ? ", בתור עכשיו" : ""}`}>
+            <div className="participant-score-heading"><h3>משתתף <bdi>#{participant}</bdi></h3>{active && <span>בתור עכשיו</span>}</div>
+            <div className="participant-score-total"><strong>{cumulativeTotal(state, participant)}</strong><span>נקודות מצטברות</span></div>
+            <dl className="participant-round-scores" aria-label="ניקוד לפי סבב">{Array.from({ length: state.settings.competitionRounds }, (_, roundIndex) => {
+              const round = roundIndex + 1;
+              const recorded = Object.hasOwn(state.competitionScores, scoreKey(round, participant));
+              return <div key={round}><dt>סבב {round}</dt><dd>{recorded ? roundTotal(state, participant, round) : <span aria-label="טרם הוזן ניקוד">—</span>}</dd></div>;
+            })}</dl>
+          </article>;
+        })}</div>
       </section>
     </div>}
 
