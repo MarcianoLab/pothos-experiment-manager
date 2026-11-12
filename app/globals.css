@@ -612,55 +612,67 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 
 /* Score-first competition view: reserve most of the projection for results. */
 .stage-competition .competition-layout {
-  grid-template-rows: clamp(58px, 8vh, 86px) clamp(100px, 17vh, 180px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  padding: 0;
+  gap: 0;
 }
-.stage-competition .competition-clock { flex-direction: row; gap: 4vw; }
-.stage-competition .clock-status { margin: 0; }
-.stage-competition .competition-seconds { flex-direction: row; gap: 14px; }
-.stage-competition .display-timer.compact { font-size: clamp(80px, 14vh, 150px); line-height: 1; }
-.stage-competition .seconds-display > span { margin: 0; }
+.stage-competition .scoreboard-panel { grid-template-rows: minmax(0, 1fr); padding: clamp(4px, .6vw, 10px); border-radius: 0; box-shadow: none; }
+.operator-shell-run.operator-shell-practice { height: auto; min-height: 100vh; overflow: auto; }
+.operator-shell-practice .run-workspace { flex: none; grid-template-rows: auto auto auto; }
+.practice-position-panel { flex: none; padding: 12px 18px; margin-bottom: 10px; }
+.practice-position-panel .panel-heading { margin-bottom: 8px; }
+.practice-position-panel h2 { font-size: 22px; margin: 0; }
+.practice-position-panel p { margin: 4px 0 0; }
+.practice-position-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; direction: ltr; }
+.practice-position-list > div { display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 8px; background: #edf2eb; text-align: center; direction: rtl; }
+.practice-position-list strong { font-size: 21px; }
+.competition-timer-display .display-timer { font-size: clamp(120px, 42vh, 460px); line-height: 1; }
+.competition-timer-display .display-kicker { font-size: clamp(22px, 3.5vh, 40px); }
 .participant-scores {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(var(--score-columns), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--score-rows), minmax(min-content, 1fr));
-  gap: clamp(6px, 1vh, 12px);
+  grid-template-rows: minmax(min-content, 1fr);
+  direction: ltr;
+  gap: clamp(3px, .5vw, 8px);
   overflow: auto;
 }
 .participant-score-card {
   min-width: 0;
+  direction: rtl;
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: .5vh;
-  padding: clamp(7px, 1vh, 12px) clamp(8px, 1vw, 18px);
+  justify-content: flex-start;
+  gap: clamp(4px, 1vh, 10px);
+  padding: clamp(4px, .5vw, 9px);
   border: 2px solid #d9ddd7;
   border-radius: 12px;
   background: #fff;
 }
 .participant-score-card.current { background: #fff0a8; border-color: #b28b00; }
-.participant-score-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.participant-score-heading h3 { margin: 0; font-size: clamp(16px, 2.3vh, 26px); line-height: 1.2; }
-.participant-score-heading > span { font-size: 14px; font-weight: 800; color: #534100; }
-.participant-score-total { display: flex; flex-direction: column; align-items: center; }
+.participant-score-heading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding-top: .6vh; }
+.participant-score-heading h3 { margin: 0; line-height: 1; }
+.participant-number-badge { display: grid; place-items: center; width: 1.35em; height: 1.35em; border-radius: 50%; background: #254c87; color: white; font-size: clamp(32px, 32cqw, 68px); font-weight: 900; font-variant-numeric: tabular-nums; }
+.current .participant-number-badge { background: #254c87; }
+.participant-score-total { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .participant-score-total strong {
   color: #153f31;
-  font-size: clamp(36px, calc(22vh / var(--score-rows)), 120px);
+  font-size: min(90cqw, calc(188cqw / var(--total-digits, 1)), 210px);
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  overflow-wrap: anywhere;
+  letter-spacing: -.065em;
   max-width: 100%;
 }
-.participant-score-total > span { font-size: 14px; color: #46574d; }
-.participant-round-scores { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding-top: .6vh; border-top: 1px solid #ccd4cb; }
-.participant-round-scores > div { min-width: 42px; }
-.participant-round-scores dt { font-size: 14px; line-height: 1.2; color: #46574d; }
-.participant-round-scores dd { margin: 2px 0 0; font-size: clamp(16px, 2.4vh, 26px); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+.participant-score-total > span { font-size: clamp(12px, 11cqw, 20px); color: #304438; text-align: center; }
+.participant-round-scores { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-top: .6vh; border-top: 1px solid #ccd4cb; }
+.participant-round-scores > div { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 2px; }
+.participant-round-scores dt { font-size: clamp(18px, 18cqw, 32px); line-height: 1.2; color: #304438; }
+.participant-round-scores dd { margin: 0; font-size: clamp(28px, 27cqw, 48px); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
-  .participant-scores { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: minmax(min-content, 1fr); }
-  .participant-score-total strong { font-size: 40px; }
-  .stage-competition .competition-layout { padding: 8px; gap: 8px; }
+  .stage-competition .competition-layout { padding: 0; gap: 0; }
   .stage-competition .competition-meta { padding-inline: 6px; }
   .stage-competition .competition-meta strong { font-size: 16px; }
   .stage-competition .scoreboard-heading { flex-wrap: wrap; gap: 2px; }
@@ -709,4 +721,153 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
     grid-template-areas: "heading" "rounds" "participants";
   }
   .operator-timer .button-row { flex-wrap: wrap; }
+}
+
+/* Keep the practice assignment, clock, navigator and inputs in one viewport. */
+@media (min-width: 760px) and (min-height: 560px) {
+  .operator-shell-run.operator-shell-practice { height: 100dvh; min-height: 0; overflow: hidden; padding-block: 8px; }
+  .operator-shell-practice .run-workspace { flex: 1 1 auto; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(145px, 1fr) minmax(190px, 1.05fr); gap: 8px; }
+  .operator-shell-practice .practice-position-panel { display: grid; grid-template-columns: minmax(170px, .4fr) minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 8px; }
+  .operator-shell-practice .practice-position-panel .panel-heading { margin: 0; gap: 8px; }
+  .operator-shell-practice .practice-position-panel h2 { font-size: 18px; }
+  .operator-shell-practice .practice-position-panel p { display: none; }
+  .operator-shell-practice .practice-position-panel button { padding: 8px; font-size: 14px; }
+  .operator-shell-practice .practice-position-list { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .operator-shell-practice .practice-position-list > div { padding: 5px 2px; font-size: 13px; }
+  .operator-shell-practice .practice-position-list strong { font-size: 16px; }
+  .operator-shell-practice .operator-timer { grid-column: 1; grid-row: 1; grid-template-columns: minmax(85px, .3fr) minmax(0, 1fr); grid-template-areas: "clock context" "clock actions"; padding: 10px 14px; column-gap: 12px; }
+  .operator-shell-practice .operator-timer .timer-context h2 { font-size: clamp(16px, 1.6vw, 24px); margin-top: 5px; }
+  .operator-shell-practice .operator-timer .pill { padding: 3px 9px; }
+  .operator-shell-practice .operator-timer .timer-preview { font-size: clamp(62px, 11vh, 105px); }
+  .operator-shell-practice .operator-timer .timer-caption { font-size: 13px; margin: 4px 0; }
+  .operator-shell-practice .operator-timer .button-row { flex-wrap: nowrap; gap: 5px; }
+  .operator-shell-practice .operator-timer .button-row button { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 5px; font-size: 12px; }
+  .operator-shell-practice .turn-navigator { grid-column: 2; grid-row: 1; min-width: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 28px minmax(40px, 1fr); grid-template-areas: "heading" "rounds" "participants"; gap: 5px; padding: 8px 12px; }
+  .operator-shell-practice .turn-nav-heading h3 { font-size: 18px; }
+  .operator-shell-practice .turn-nav-heading p { margin: 0; font-size: 11px; line-height: 1.2; }
+  .operator-shell-practice .turn-navigator .round-tabs { gap: 5px; }
+  .operator-shell-practice .turn-navigator .round-tabs button { padding: 5px; font-size: 13px; }
+  .operator-shell-practice .participant-queue { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+  .operator-shell-practice .participant-queue button { min-width: 0; padding: 4px 2px; }
+  .operator-shell-practice .participant-queue button span { font-size: 18px; line-height: 1.1; }
+  .operator-shell-practice .participant-queue button small { font-size: 10px; line-height: 1.1; }
+  .operator-shell-practice .score-panel { grid-column: 1 / -1; grid-row: 2; min-height: 0; padding: 10px 14px; display: grid; align-content: center; }
+  .operator-shell-practice .score-panel .score-heading { margin-bottom: 4px; }
+  .operator-shell-practice .score-heading h2 { font-size: 20px; line-height: 1.2; }
+  .operator-shell-practice .score-panel .panel-label { margin: 0; font-size: 11px; line-height: 1.2; }
+  .operator-shell-practice .score-total { padding: 6px 10px; line-height: 1.2; }
+  .operator-shell-practice .score-panel .dart-grid { gap: 8px; }
+  .operator-shell-practice .score-panel .dart-grid label { font-size: 13px; line-height: 1.2; }
+  .operator-shell-practice .score-panel .dart-grid input { margin-top: 4px; padding: 4px; font-size: 24px; height: 42px; }
+  .operator-shell-practice .keyboard-hint, .operator-shell-practice .privacy-note { font-size: 11px; margin-block: 5px; }
+  .operator-shell-practice .privacy-note { padding: 3px 8px; font-size: 10px; line-height: 1.2; }
+  .operator-shell-practice .score-turn-actions { margin-top: 6px; gap: 8px; }
+  .operator-shell-practice .score-turn-actions button { min-height: 34px; padding-block: 5px; }
+}
+
+.turn-selectors { grid-area: rounds; display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.turn-selectors .round-tabs { flex: 1; min-width: 0; }
+.heat-tabs { display: flex; gap: 4px; }
+.heat-tabs button { border: 1px solid var(--line); border-radius: 8px; background: #edf2f8; color: #254c87; font-weight: 800; padding: 4px 8px; white-space: nowrap; }
+.heat-tabs button.active { background: #254c87; color: white; }
+.practice-position-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.practice-position-list .practice-heat-group { padding: 4px 6px; }
+.practice-heat-group > b { font-size: 12px; color: #254c87; }
+.practice-heat-group > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.practice-heat-group > div > span { display: flex; flex-direction: column; font-size: 12px; }
+@media (min-width: 760px) and (min-height: 560px) {
+  .operator-shell-practice .practice-position-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .operator-shell-practice .practice-position-panel .panel-heading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .operator-shell-practice .practice-position-panel h2 { font-size: 14px; line-height: 1.2; }
+  .operator-shell-practice .practice-position-panel button { font-size: 13px; padding: 5px; white-space: nowrap; }
+  .operator-shell-practice .practice-position-list > div { padding: 3px 4px; }
+  .operator-shell-practice .practice-position-list strong { font-size: 14px; }
+  .operator-shell-practice .participant-queue { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .operator-shell-practice .turn-selectors .round-tabs button { flex-basis: 0; min-width: 0; font-size: 12px; padding: 3px; }
+  .operator-shell-practice .heat-tabs button { font-size: 12px; padding: 3px 6px; }
+  .operator-shell-practice .turn-nav-heading h3 { font-size: 16px; }
+  .operator-shell-practice .score-heading h2 { font-size: 18px; }
+  .operator-shell-practice .score-panel { padding-block: 8px; }
+  .operator-shell-practice .score-panel .keyboard-hint { font-size: 10px; line-height: 1.2; margin-block: 3px; }
+  .operator-shell-practice .score-panel .privacy-note { margin-block: 2px; }
+  .operator-shell-practice .score-turn-actions button { min-height: 30px; padding-block: 3px; }
+}
+
+/* Size the finish view to its contents so the run console cannot clip the actions. */
+.operator-shell-run.operator-shell-finished { height: auto; min-height: 100dvh; overflow: visible; }
+.finish-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(6px, 1.4vh, 14px);
+  align-items: start;
+}
+.finish-layout .finished-hero {
+  min-height: 0;
+  padding: clamp(8px, 2vh, 24px) 12px;
+  justify-items: center;
+}
+.finish-layout .winner-block { margin-top: 6px; gap: 4px; }
+.finish-layout .winner-block p,
+.finish-layout .winner-block span { margin: 0; }
+.finish-layout .winner-block strong { font-size: clamp(30px, 8vh, 76px); }
+.finish-layout .winner-block span { font-size: clamp(13px, 2.4vh, 22px); }
+.finish-layout .panel { padding: clamp(8px, 1.7vh, 20px); min-width: 0; }
+.finish-results h2 { font-size: clamp(18px, 3.3vh, 30px); margin: 0; }
+.finish-results p { margin: 3px 0 8px; font-size: clamp(12px, 2vh, 16px); line-height: 1.35; }
+.finish-results th,
+.finish-results td { padding: clamp(3px, 1vh, 12px) clamp(4px, 1.4vw, 16px); line-height: 1.25; }
+.finish-results thead th { white-space: normal; }
+.finish-layout .finish-actions { flex-wrap: wrap; gap: 6px; }
+.finish-actions button { padding: 7px 10px; font-size: clamp(12px, 2vh, 15px); }
+.finish-actions .drive-finish-status { flex-basis: 100%; margin: 0; text-align: center; line-height: 1.3; }
+.stage-finished .display-center h1 { font-size: clamp(24px, min(7vw, 10dvh), 96px); line-height: 1.15; margin: 0; }
+.stage-finished .display-winners { margin: 1dvh 0; }
+.stage-finished .display-winners span { font-size: clamp(42px, min(18vw, 27dvh), 240px); }
+.stage-finished .display-instruction,
+.stage-finished .display-kicker { font-size: clamp(15px, min(4vw, 5dvh), 36px); line-height: 1.25; margin: 1dvh 0; }
+
+@media (min-width: 680px) {
+  .finish-layout-with-results {
+    grid-template-columns: minmax(0, 1fr) minmax(230px, .65fr);
+    grid-template-rows: auto auto;
+    grid-template-areas: "results winner" "results actions";
+    align-content: start;
+  }
+  .finish-layout-with-results .finished-hero { grid-area: winner; }
+  .finish-layout-with-results .finish-results { grid-area: results; }
+  .finish-layout-with-results .finish-actions { grid-area: actions; }
+}
+@media (max-width: 679px) {
+  .operator-shell-run.operator-shell-finished { padding: 6px 8px; }
+  .operator-shell-finished .topbar { gap: 4px; margin-bottom: 4px; }
+  .operator-shell-finished .top-actions { gap: 4px; }
+  .operator-shell-finished .top-actions button { padding: 5px 7px; font-size: 12px; }
+  .operator-shell-finished .tabs { gap: 2px; margin-bottom: 4px; }
+  .operator-shell-finished .tabs button,
+  .operator-shell-finished .stage-strip button { padding: 5px; font-size: clamp(11px, 3.2vw, 14px); }
+  .operator-shell-finished .stage-strip { margin-bottom: 5px; }
+  .finish-layout .winner-block { margin-top: 3px; }
+  .finish-results th, .finish-results td { padding-block: 3px; font-size: 13px; }
+
+  .operator-shell-finished .topbar { flex-direction: row; align-items: center; }
+  .operator-shell-finished .topbar h1 { font-size: clamp(17px, 5vw, 22px); }
+  .operator-shell-finished .eyebrow { line-height: 1.2; }
+  .operator-shell-finished .top-actions { width: auto; flex: 0 0 auto; flex-direction: column; }
+  .operator-shell-finished .sync-badge { padding: 3px 7px; font-size: 11px; }
+  .finish-layout-with-results .finished-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 5px 10px;
+    padding: 8px;
+  }
+  .finish-layout-with-results .finished-hero .pill { padding: 3px 7px; font-size: 11px; }
+  .finish-layout-with-results .winner-block { flex-direction: row; flex-wrap: wrap; justify-content: center; margin: 0; }
+  .finish-layout-with-results .winner-block p { font-size: 13px; }
+  .finish-layout-with-results .winner-block strong { font-size: 30px; }
+  .finish-layout-with-results .winner-block span { font-size: 13px; }
+  .finish-layout .finish-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .finish-actions button { padding: 5px; line-height: 1.2; }
+  .finish-actions .drive-finish-status { grid-column: 1 / -1; }
 }

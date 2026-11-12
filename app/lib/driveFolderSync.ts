@@ -7,6 +7,8 @@ const DATABASE_NAME = "pothos-drive-folder";
 const STORE_NAME = "handles";
 export type FolderDestination = "network-folder" | "local-folder";
 
+export type NetworkFolderConnection = { handle: WritableDirectoryHandle; path: string };
+
 type PermissionStateValue = "granted" | "denied" | "prompt";
 
 export type WritableDirectoryHandle = {
@@ -23,7 +25,7 @@ export type WritableDirectoryHandle = {
 
 declare global {
   interface Window {
-    showDirectoryPicker?: (options?: { mode?: "read" | "readwrite" }) => Promise<WritableDirectoryHandle>;
+    showDirectoryPicker?: (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<WritableDirectoryHandle>;
   }
 }
 
@@ -38,35 +40,59 @@ function openDatabase() {
   });
 }
 
-async function storeHandle(handle: WritableDirectoryHandle, destination: FolderDestination) {
+async function storeFolderValue(destination: FolderDestination, value: WritableDirectoryHandle | NetworkFolderConnection) {
   const database = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).put(handle, destination);
+    transaction.objectStore(STORE_NAME).put(value, destination);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
   database.close();
 }
 
-export async function getStoredFolder(destination: FolderDestination) {
+async function getStoredValue(destination: FolderDestination): Promise<unknown> {
   const database = await openDatabase();
-  const handle = await new Promise<WritableDirectoryHandle | null>((resolve, reject) => {
-    const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(destination);
-    request.onsuccess = () => resolve((request.result as WritableDirectoryHandle | undefined) ?? null);
-    request.onerror = () => reject(request.error);
-  });
-  database.close();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readonly");
+      const request = transaction.objectStore(STORE_NAME).get(destination);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    database.close();
+  }
+}
+
+export async function getStoredFolder(destination: "local-folder") {
+  return (await getStoredValue(destination) as WritableDirectoryHandle | undefined) ?? null;
+}
+
+export async function getStoredNetworkFolder(defaultPath: string): Promise<NetworkFolderConnection | null> {
+  const stored = await getStoredValue("network-folder") as NetworkFolderConnection | WritableDirectoryHandle | undefined;
+  if (!stored) return null;
+  return "handle" in stored ? stored : { handle: stored, path: defaultPath };
+}
+
+async function pickWritableFolder(destination: FolderDestination) {
+  if (!window.showDirectoryPicker) throw new Error("unsupported");
+  const handle = await window.showDirectoryPicker({ id: `pothos-${destination}`, mode: "readwrite" });
+  if (!await ensureFolderPermission(handle, true)) throw new Error("permission");
   return handle;
 }
 
-export async function chooseFolder(destination: FolderDestination) {
-  if (!window.showDirectoryPicker) throw new Error("unsupported");
-  const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-  const permission = await handle.requestPermission({ mode: "readwrite" });
-  if (permission !== "granted") throw new Error("permission");
-  await storeHandle(handle, destination);
+export async function chooseFolder(destination: "local-folder") {
+  const handle = await pickWritableFolder(destination);
+  await storeFolderValue(destination, handle);
   return handle;
+}
+
+export async function chooseNetworkFolder(path: string): Promise<NetworkFolderConnection> {
+  const handle = await pickWritableFolder("network-folder");
+  const connection = { handle, path };
+  await storeFolderValue("network-folder", connection);
+  return connection;
 }
 
 export async function ensureFolderPermission(handle: WritableDirectoryHandle, request = false) {

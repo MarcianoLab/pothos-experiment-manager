@@ -11,6 +11,11 @@ import {
 
 export type SaveStatus = "local" | "syncing" | "cloud" | "offline";
 
+function hasNewerDraw(incoming: ExperimentState, current: ExperimentState) {
+  return incoming.id === current.id && !!incoming.prizeDraw
+    && incoming.prizeDraw.drawnAt > (current.prizeDraw?.drawnAt ?? "");
+}
+
 export function useExperiment(readOnly = false) {
   const [state, setState] = useState<ExperimentState>(() => createExperiment());
   const [hydrated, setHydrated] = useState(false);
@@ -32,7 +37,12 @@ export function useExperiment(readOnly = false) {
     const channel = new BroadcastChannel(CHANNEL_NAME);
     channelRef.current = channel;
     channel.onmessage = (event) => {
-      if (readOnly && event.data?.type === "state") setState(normalizeState(event.data.state));
+      if (event.data?.type !== "state") return;
+      const incoming = event.data.state as ExperimentState;
+      if (readOnly) setState(normalizeState(incoming));
+      else if (incoming.prizeDraw) {
+        setState((current) => hasNewerDraw(incoming, current) ? normalizeState(incoming) : current);
+      }
     };
     return () => channel.close();
   }, [readOnly]);
@@ -40,6 +50,15 @@ export function useExperiment(readOnly = false) {
   useEffect(() => {
     if (!hydrated || readOnly) return;
     const next = { ...state, updatedAt: new Date().toISOString() };
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as ExperimentState | null;
+      if (saved && hasNewerDraw(saved, state)) {
+        setState(normalizeState(saved));
+        return;
+      }
+    } catch {
+      // Replace a damaged local draft with the current session.
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     channelRef.current?.postMessage({ type: "state", state: next });
     const timeout = window.setTimeout(async () => {
